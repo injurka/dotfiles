@@ -9,7 +9,8 @@ plugins=(
 )
 
 # https://ohmyz.sh/
-source $ZSH/oh-my-zsh.sh
+# source $ZSH/oh-my-zsh.sh
+source ~/.oh-my-zsh/oh-my-zsh.sh
 
 # -------------------------------- #
 # Node Package Manager
