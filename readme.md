@@ -1,1 +1,2 @@
+HYPRLAND
 ZSH
