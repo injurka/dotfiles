@@ -1,2 +1,1 @@
-HYPRLAND
-ZSH
+My dotfiles for different app
