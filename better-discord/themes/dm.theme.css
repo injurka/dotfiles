@@ -19,3 +19,21 @@
   --accent: 37, 172, 232;
   --accent-alt: 29, 101, 134;
 }
+
+::-webkit-scrollbar-track {
+  visibility: visible !important;
+  border-radius: 8px !important;
+  border: 3px solid transparent !important;
+  background-color: transparent !important;
+  background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar {
+  width: 12px !important;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 8px !important;
+  border: 3px solid transparent !important;
+  background-color: #0c0e12bd !important;
+}
