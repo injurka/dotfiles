@@ -42,6 +42,7 @@ alias re="nr release"
 alias grt='cd "$(git rev-parse --show-toplevel)"'
 
 alias gs='git status'
+alias gsw='git switch'
 alias gp='git push'
 alias gpf='git push --force'
 alias gpft='git push --follow-tags'
