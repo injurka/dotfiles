@@ -1,0 +1,13 @@
+singleton SrsService 1.0 SrsService.qml
+SrsCard 1.0 SrsCard.qml
+SrsSettings 1.0 SrsSettings.qml
+SrsPopup 1.0 SrsPopup.qml
+SrsAction 1.0 SrsAction.qml
+SrsConnection 1.0 SrsConnection.qml
+QuickshellBarButton 1.0 QuickshellBarButton.qml
+SrsMultiSelect 1.0 SrsMultiSelect.qml
+SrsSection 1.0 SrsSection.qml
+SrsGradeButton 1.0 SrsGradeButton.qml
+SrsCardToolbar 1.0 SrsCardToolbar.qml
+SrsCardViewport 1.0 SrsCardViewport.qml
+SrsText 1.0 SrsText.qml
