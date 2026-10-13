@@ -11,6 +11,7 @@ Item {
     property int monthShift: 0
     property var viewingDate: CalendarLayout.getDateInXMonthsTime(monthShift)
     property var calendarLayout: CalendarLayout.getCalendarLayout(viewingDate, monthShift === 0)
+    readonly property var uiLocale: Qt.locale(Translation.languageCode === "he_HE" ? "he_IL" : Translation.languageCode)
 
     anchors.topMargin: 10
     width: calendarColumn.width
@@ -54,7 +55,7 @@ Item {
 
             CalendarHeaderButton {
                 clip: true
-                buttonText: `${monthShift != 0 ? "• " : ""}${viewingDate.toLocaleDateString(Qt.locale(),
+                buttonText: `${monthShift != 0 ? "• " : ""}${viewingDate.toLocaleDateString(root.uiLocale,
                                                                                             "MMMM yyyy")}`
                 tooltipText: (monthShift === 0) ? "" : Translation.tr("Jump to current month")
                 downAction: () => {
@@ -68,8 +69,8 @@ Item {
             }
             CalendarHeaderButton {
                 forceCircle: true
-                tooltipText: "Расписание"
-                Accessible.name: "Расписание"
+                tooltipText: Translation.tr("Schedule")
+                Accessible.name: Translation.tr("Schedule")
                 downAction: () => agendaWindow.openDate(new Date())
                 contentItem: MaterialSymbol {
                     text: "open_in_full"

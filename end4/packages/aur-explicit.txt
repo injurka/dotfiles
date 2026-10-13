@@ -1,9 +1,13 @@
+adw-gtk-theme-git
 amneziavpn-bin
+breeze-plus
 browsec-desktop
 codex-desktop-git
+darkly-bin
 deepfilternet-plugin-pipewire-bin
 docker-desktop
 figma-linux
+html2markdown
 illogical-impulse-audio
 illogical-impulse-backlight
 illogical-impulse-basic
@@ -19,8 +23,12 @@ illogical-impulse-screencapture
 illogical-impulse-toolkit
 illogical-impulse-widgets
 organicmaps
+otf-space-grotesk
+qt6-avif-image-plugin
 svp-bin
 telegram-desktop-bin
+ttf-rubik-vf
 tuxtimings
 tuxtimings-dkms
 yay-bin
+zcode

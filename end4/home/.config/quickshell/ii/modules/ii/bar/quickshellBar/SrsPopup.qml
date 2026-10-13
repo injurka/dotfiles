@@ -95,9 +95,17 @@ PanelWindow {
         anchors.fill: parent
         radius: Appearance.rounding.large
         antialiasing: true
-        color: Appearance.m3colors.m3surfaceContainer
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
+        // Paint the outline up to the window edge. A Rectangle border on a
+        // transparent window leaves antialiased pixels that look like a gap.
+        color: Appearance.colors.colLayer0Border
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, frame.radius - 1)
+            antialiasing: true
+            color: Appearance.m3colors.m3surfaceContainer
+        }
 
         FocusScope {
             id: keyboard

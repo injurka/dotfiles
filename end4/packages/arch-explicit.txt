@@ -3,6 +3,7 @@ alsa-firmware
 alsa-plugins
 alsa-utils
 amd-ucode
+amneziavpn-bin
 ark
 awesome-terminal-fonts
 aws-cli
@@ -22,6 +23,7 @@ bluez-obex
 bluez-utils
 bpftune-git
 bridge-utils
+browsec-desktop
 btrfs-progs
 cachyos-fish-config
 cachyos-gaming-applications
@@ -47,10 +49,12 @@ chaotic-mirrorlist
 chrpath
 chwd
 clinfo
+codex-desktop-git
 cpupower
 cryptsetup
 dart-sass
 debtap
+deepfilternet-plugin-pipewire-bin
 device-mapper
 diffutils
 discord
@@ -58,6 +62,7 @@ dmemcg-booster
 dmidecode
 dmraid
 dnsmasq
+docker-desktop
 dosfstools
 dua-cli
 duf
@@ -72,6 +77,7 @@ f2fs-tools
 fastfetch
 ffmpegthumbnailer
 ffmpegthumbs
+figma-linux
 flatpak
 fsarchiver
 fuse2
@@ -90,6 +96,20 @@ htop
 hwdetect
 hwinfo
 hyprpolkitagent
+illogical-impulse-audio
+illogical-impulse-backlight
+illogical-impulse-basic
+illogical-impulse-bibata-modern-classic-bin
+illogical-impulse-fonts-themes
+illogical-impulse-hyprland
+illogical-impulse-kde
+illogical-impulse-microtex-git
+illogical-impulse-portal
+illogical-impulse-python
+illogical-impulse-quickshell-git
+illogical-impulse-screencapture
+illogical-impulse-toolkit
+illogical-impulse-widgets
 inetutils
 iptables
 jdk-openjdk
@@ -161,6 +181,7 @@ nwg-look
 obsidian
 opencl-mesa
 openssh
+organicmaps
 os-prober
 pacman-contrib
 pamixer
@@ -210,9 +231,11 @@ sqlite-analyzer
 sqlitebrowser
 squashfs-tools
 sudo
+svp-bin
 swaylock-effects
 swaync
 sysfsutils
+telegram-desktop-bin
 texinfo
 tk
 ttf-bitstream-vera
@@ -221,6 +244,8 @@ ttf-liberation
 ttf-meslo-nerd
 ttf-nerd-fonts-symbols-common
 ttf-opensans
+tuxtimings
+tuxtimings-dkms
 udiskie
 ufw
 ufw-extras
@@ -243,5 +268,7 @@ wpa_supplicant
 xfsprogs
 xl2tpd
 xorg-xwayland
+yay-bin
+zcode
 zen-browser-bin
 zlib-ng-compat
