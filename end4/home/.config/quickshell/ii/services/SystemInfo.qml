@@ -59,7 +59,8 @@ Singleton {
             // Update the distroIcon property based on distroId
             switch (distroId) {
                 case "artix":
-                case "arch": distroIcon = "arch-symbolic"; break;
+                case "arch":
+                case "nyarch": distroIcon = "arch-symbolic"; break;
                 case "manjaro": distroIcon = "manjaro-symbolic"; break;
                 case "endeavouros": distroIcon = "endeavouros-symbolic"; break;
                 case "cachyos": distroIcon = "cachyos-symbolic"; break;
@@ -76,10 +77,6 @@ Singleton {
                 case "gentoo": distroIcon = "gentoo-symbolic"; break;
                 default: distroIcon = "linux-symbolic"; break;
             }
-            if (textOsRelease.toLowerCase().includes("nyarch")) {
-                distroIcon = "nyarch-symbolic"
-            }
-
             if (logo.trim().length === 0) {
                 logo = distroIcon
             }

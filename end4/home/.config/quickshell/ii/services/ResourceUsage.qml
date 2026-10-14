@@ -21,6 +21,7 @@ Singleton {
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
     property real cpuUsage: 0
     property var previousCpuStats
+    property var hardware: ({ cpu: [], gpu: [], board: [], storage: [] })
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -67,6 +68,7 @@ Singleton {
             // Reload files
             fileMeminfo.reload()
             fileStat.reload()
+            if (!hardwareProc.running) hardwareProc.running = true
 
             // Parse memory and swap usage
             const textMeminfo = fileMeminfo.text()
@@ -99,6 +101,23 @@ Singleton {
 
 	FileView { id: fileMeminfo; path: "/proc/meminfo" }
     FileView { id: fileStat; path: "/proc/stat" }
+
+    Process {
+        id: hardwareProc
+        command: ["python3", Quickshell.shellPath("scripts/resources/hardware.py")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.hardware = JSON.parse(text)
+                } catch (error) {
+                    root.hardware = { cpu: [], gpu: [], board: [], storage: [] }
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) root.hardware = { cpu: [], gpu: [], board: [], storage: [] }
+        }
+    }
 
     Process {
         id: findCpuMaxFreqProc

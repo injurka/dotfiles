@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Hyprland (end-4 portable)
+Comment=Portable end-4 session
+Exec=@END4_LAUNCHER@
+TryExec=/usr/bin/start-hyprland
+Type=Application
+DesktopNames=Hyprland
+Keywords=tiling;wayland;compositor;
+X-End4-Portable=true

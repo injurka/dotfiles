@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
@@ -7,86 +9,77 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
 
-    // Helper function to format KB to GB
-    function formatKB(kb) {
-        return (kb / (1024 * 1024)).toFixed(1) + " GB";
+    function memoryRows(used, free, total) {
+        return [
+            { icon: "clock_loader_60", label: "Used:", value: ResourceUsage.kbToGbString(used) },
+            { icon: "check_circle", label: "Free:", value: ResourceUsage.kbToGbString(free) },
+            { icon: "empty_dashboard", label: "Total:", value: ResourceUsage.kbToGbString(total) }
+        ];
     }
 
-    Row {
+    readonly property var sections: {
+        const hardware = ResourceUsage.hardware;
+        const sections = [{ icon: "memory", label: "RAM", rows: memoryRows(ResourceUsage.memoryUsed, ResourceUsage.memoryFree, ResourceUsage.memoryTotal) }];
+        if (ResourceUsage.swapTotal > 0)
+            sections.push({ icon: "swap_horiz", label: "Swap", rows: memoryRows(ResourceUsage.swapUsed, ResourceUsage.swapFree, ResourceUsage.swapTotal) });
+        sections.push({ icon: "planner_review", label: "CPU", rows: [
+            { icon: "bolt", label: "Load:", value: `${Math.round(ResourceUsage.cpuUsage * 100)}%` },
+            ...hardware.cpu
+        ] });
+        if (hardware.gpu.length > 0)
+            sections.push({ icon: "developer_board", label: "GPU", rows: hardware.gpu });
+        if (hardware.board.length > 0)
+            sections.push({ icon: "developer_board", label: "Motherboard", rows: hardware.board });
+        if (hardware.storage.length > 0)
+            sections.push({ icon: "hard_drive", label: "Storage", rows: hardware.storage });
+        return sections;
+    }
+
+    GridLayout {
         anchors.centerIn: parent
-        spacing: 12
+        columns: 3
+        columnSpacing: 8
+        rowSpacing: 8
 
-        Column {
-            anchors.top: parent.top
-            spacing: 8
+        Repeater {
+            model: root.sections
 
-            StyledPopupHeaderRow {
-                icon: "memory"
-                label: "RAM"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "clock_loader_60"
-                    label: Translation.tr("Used:")
-                    value: root.formatKB(ResourceUsage.memoryUsed)
-                }
-                StyledPopupValueRow {
-                    icon: "check_circle"
-                    label: Translation.tr("Free:")
-                    value: root.formatKB(ResourceUsage.memoryFree)
-                }
-                StyledPopupValueRow {
-                    icon: "empty_dashboard"
-                    label: Translation.tr("Total:")
-                    value: root.formatKB(ResourceUsage.memoryTotal)
-                }
-            }
-        }
+            Rectangle {
+                id: section
+                required property var modelData
+                Layout.alignment: Qt.AlignTop
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: Appearance.rounding.small
+                color: Appearance.colors.colSurfaceContainerHigh
+                implicitWidth: sectionContent.implicitWidth + 60
+                implicitHeight: sectionContent.implicitHeight + 28
 
-        Column {
-            visible: ResourceUsage.swapTotal > 0
-            anchors.top: parent.top
-            spacing: 8
+                ColumnLayout {
+                    id: sectionContent
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 6
 
-            StyledPopupHeaderRow {
-                icon: "swap_horiz"
-                label: "Swap"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "clock_loader_60"
-                    label: Translation.tr("Used:")
-                    value: root.formatKB(ResourceUsage.swapUsed)
-                }
-                StyledPopupValueRow {
-                    icon: "check_circle"
-                    label: Translation.tr("Free:")
-                    value: root.formatKB(ResourceUsage.swapFree)
-                }
-                StyledPopupValueRow {
-                    icon: "empty_dashboard"
-                    label: Translation.tr("Total:")
-                    value: root.formatKB(ResourceUsage.swapTotal)
-                }
-            }
-        }
+                    StyledPopupHeaderRow {
+                        icon: section.modelData.icon
+                        label: Translation.tr(section.modelData.label)
+                    }
 
-        Column {
-            anchors.top: parent.top
-            spacing: 8
+                    Repeater {
+                        model: section.modelData.rows
 
-            StyledPopupHeaderRow {
-                icon: "planner_review"
-                label: "CPU"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "bolt"
-                    label: Translation.tr("Load:")
-                    value: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
+                        StyledPopupValueRow {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            spacing: 8
+                            icon: modelData.icon
+                            label: Translation.tr(modelData.label)
+                            value: modelData.value
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
                 }
             }
         }

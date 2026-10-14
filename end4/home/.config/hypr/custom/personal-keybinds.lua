@@ -25,8 +25,6 @@ hl.bind("SUPER + ALT + S", hl.dsp.exec_cmd("hyde-shell screenshot m"))
 hl.bind("SUPER + ALT + H", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/switch_monitors_profile.sh"))
 hl.bind("SUPER + ALT + M", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/switch_monitors_size.sh"))
 
--- Ваш скрипт "Interview Hypr Assistant"
-hl.bind("SUPER + SHIFT + I", hl.dsp.exec_cmd([[kitty --title "Interview Hypr Assistant" -e bash -c "cd /home/injurka/my/interview-hypr-assistant && ./deploy.sh"]]))
 
 -- Специальный воркспейс
 hl.bind("SUPER + A", hl.dsp.workspace.toggle_special())
