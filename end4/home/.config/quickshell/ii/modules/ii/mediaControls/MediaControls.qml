@@ -82,12 +82,14 @@ Scope {
 
         sourceComponent: PanelWindow {
             id: panelWindow
+            readonly property real popupTopSpace: 32
+            property bool volumePopupVisible: false
             visible: true
 
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
             implicitWidth: root.widgetWidth
-            implicitHeight: playerColumnLayout.implicitHeight
+            implicitHeight: playerColumnLayout.implicitHeight + popupTopSpace
             color: "transparent"
             WlrLayershell.namespace: "quickshell:mediaControls"
 
@@ -98,7 +100,7 @@ Scope {
                 right: Config.options.bar.vertical && Config.options.bar.bottom
             }
             margins {
-                top: Config.options.bar.vertical ? ((panelWindow.screen.height / 2) - widgetHeight * 1.5) : Appearance.sizes.barHeight
+                top: (Config.options.bar.vertical ? ((panelWindow.screen.height / 2) - widgetHeight * 1.5) : Appearance.sizes.barHeight) - (panelWindow.anchors.top ? panelWindow.popupTopSpace : 0)
                 bottom: Appearance.sizes.barHeight
                 left: Config.options.bar.vertical ? Appearance.sizes.barHeight : ((panelWindow.screen.width / 2) - (osdWidth / 2) - widgetWidth)
                 right: Appearance.sizes.barHeight
@@ -106,6 +108,12 @@ Scope {
 
             mask: Region {
                 item: playerColumnLayout
+                Region {
+                    x: panelWindow.width - 72
+                    y: 0
+                    width: 72
+                    height: panelWindow.volumePopupVisible ? panelWindow.popupTopSpace : 0
+                }
             }
 
             Component.onCompleted: {
@@ -124,6 +132,7 @@ Scope {
             ColumnLayout {
                 id: playerColumnLayout
                 anchors.fill: parent
+                anchors.topMargin: panelWindow.popupTopSpace
                 spacing: -Appearance.sizes.elevationMargin // Shadow overlap okay
 
                 Repeater {
@@ -137,6 +146,7 @@ Scope {
                         implicitWidth: root.widgetWidth
                         implicitHeight: root.widgetHeight
                         radius: root.popupRounding
+                        onVolumePopupVisibleChanged: panelWindow.volumePopupVisible = volumePopupVisible
                     }
                 }
 
@@ -192,17 +202,17 @@ Scope {
         target: "mediaControls"
 
         function toggle(): void {
-            mediaControlsLoader.active = !mediaControlsLoader.active;
-            if (mediaControlsLoader.active)
+            GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen;
+            if (GlobalStates.mediaControlsOpen)
                 Notifications.timeoutAll();
         }
 
         function close(): void {
-            mediaControlsLoader.active = false;
+            GlobalStates.mediaControlsOpen = false;
         }
 
         function open(): void {
-            mediaControlsLoader.active = true;
+            GlobalStates.mediaControlsOpen = true;
             Notifications.timeoutAll();
         }
     }

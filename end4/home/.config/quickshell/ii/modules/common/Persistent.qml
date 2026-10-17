@@ -63,6 +63,10 @@ Singleton {
                 property real temperature: 0.5
             }
 
+            property JsonObject voiceAssistant: JsonObject {
+                property string model: ""
+            }
+
             property JsonObject cheatsheet: JsonObject {
                 property int tabIndex: 0
             }

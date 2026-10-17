@@ -6,33 +6,20 @@ import qs.services
 QuickToggleModel {
     id: root
     name: Translation.tr("Game mode")
-    toggled: !confOpt.value
+    toggled: confOpt.value !== undefined && !confOpt.value
     icon: "gamepad"
 
+    // Use the same entry point as Super + Alt + G.
     mainAction: () => {
-        root.toggled = !root.toggled;
-        if (root.toggled) {
-            HyprlandConfig.setMany({
-                "animations:enabled": 0,
-                "decoration:shadow:enabled": 0,
-                "decoration:blur:enabled": 0,
-                "general:gaps_in": 0,
-                "general:gaps_out": 0,
-                "general:border_size": 1,
-                "decoration:rounding": 0,
-                "general:allow_tearing": 1
-            });
-        } else {
-            HyprlandConfig.resetMany([ //
-                "animations:enabled", //
-                "decoration:shadow:enabled", //
-                "decoration:blur:enabled", //
-                "general:gaps_in", //
-                "general:gaps_out", //
-                "general:border_size", //
-                "decoration:rounding", //
-                "general:allow_tearing", //
-            ]);
+        if (!toggleProc.running) toggleProc.running = true;
+    }
+
+    Process {
+        id: toggleProc
+        command: ["bash", "-c", 'exec bash "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/custom/scripts/end4-game-mode.sh"']
+        onExited: (exitCode, exitStatus) => {
+            confOpt.fetch();
+            if (exitCode !== 0) console.warn("Game mode toggle failed:", exitCode);
         }
     }
 

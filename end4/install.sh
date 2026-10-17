@@ -122,7 +122,7 @@ if [[ "$MODE" == "full" && (-e "$SESSION_TARGET" || -L "$SESSION_TARGET") ]]; th
 fi
 
 if [[ "$DRY_RUN" != true ]]; then
-  for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json Wallpapers .local/bin/start-end4-hyprland; do
+  for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json .config/systemd/user/voice-assistant.service Wallpapers .local/bin/start-end4-hyprland; do
     target="$HOME/$relative"
     if [[ -L "$target" ]]; then
       echo "Refusing to write through a symlink: $target" >&2
@@ -138,7 +138,8 @@ import sys
 source_home, home, font_target = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 removed_quickshell_paths = [Path(item) for item in sys.argv[4:]]
 for relative in [Path(".config/hypr"), Path(".config/quickshell/ii"),
-                 Path(".config/illogical-impulse/config.json"), Path("Wallpapers"),
+                 Path(".config/illogical-impulse/config.json"),
+                 Path(".config/systemd/user/voice-assistant.service"), Path("Wallpapers"),
                  Path(".local/bin/start-end4-hyprland")]:
     source = source_home / relative
     candidates = [source] if source.is_file() else source.rglob("*") if source.is_dir() else []
@@ -181,9 +182,9 @@ if [[ "$DRY_RUN" == true ]]; then
   python3 "$ROOT/machine-profile.py"
   echo
   if [[ "$MODE" == "full" ]]; then
-    echo "Plan: run the pinned end-4 installer, back up existing settings, copy the saved snapshot, remove retired anime files, install Maple Mono fonts and launcher, register the end-4 Wayland session, and configure display scale $MONITOR_SCALE."
+    echo "Plan: run the pinned end-4 installer, back up existing settings, copy the saved snapshot and Voice Assistance user service, remove retired anime files, install Maple Mono fonts and launcher, register the end-4 Wayland session, and configure display scale $MONITOR_SCALE."
   else
-    echo "Plan: back up existing settings, copy the saved snapshot, remove retired anime files, install Maple Mono fonts and launcher, and configure display scale $MONITOR_SCALE. System session registration is full-mode only."
+    echo "Plan: back up existing settings, copy the saved snapshot and Voice Assistance user service, remove retired anime files, install Maple Mono fonts and launcher, and configure display scale $MONITOR_SCALE. System session registration is full-mode only."
   fi
   echo "No files, packages, or services were changed."
   exit 0
@@ -221,7 +222,7 @@ fi
 backup_root="$HOME/.local/state/end4-transfer-backups"
 mkdir -p "$backup_root"
 backup="$(mktemp -d "$backup_root/$(date +%Y%m%d-%H%M%S)-XXXXXX")"
-for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json Wallpapers .local/bin/start-end4-hyprland; do
+for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json .config/systemd/user/voice-assistant.service Wallpapers .local/bin/start-end4-hyprland; do
   target="$HOME/$relative"
   if [[ -e "$target" || -L "$target" ]]; then
     mkdir -p "$backup/$(dirname -- "$relative")"
@@ -243,7 +244,7 @@ if [[ "$MODE" == "full" ]]; then
   (cd "$upstream" && ./setup install)
 fi
 
-for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json Wallpapers .local/bin/start-end4-hyprland; do
+for relative in .config/hypr .config/quickshell/ii .config/illogical-impulse/config.json .config/systemd/user/voice-assistant.service Wallpapers .local/bin/start-end4-hyprland; do
   source="$SOURCE_HOME/$relative"
   target="$HOME/$relative"
   [[ -e "$source" ]] || continue
@@ -299,6 +300,7 @@ old_home = sys.argv[3].encode()
 scale = sys.argv[4]
 relative_paths = [Path(".config/hypr"), Path(".config/quickshell/ii"),
                   Path(".config/illogical-impulse/config.json"), Path("Wallpapers"),
+                  Path(".config/systemd/user/voice-assistant.service"),
                   Path(".local/bin/start-end4-hyprland")]
 
 # Rewrite only files that came from this snapshot. Data on the target computer,

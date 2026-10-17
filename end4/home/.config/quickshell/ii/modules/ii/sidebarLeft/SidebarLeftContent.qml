@@ -16,6 +16,7 @@ Item {
     property bool translatorEnabled: Config.options.sidebar.translator.enable
     property var tabButtonList: [
         ...(root.aiChatEnabled ? [{"icon": "neurology", "name": Translation.tr("Intelligence")}] : []),
+        {"icon": "mic", "name": Translation.tr("Voice Assistance")},
         ...(root.translatorEnabled ? [{"icon": "translate", "name": Translation.tr("Translator")}] : [])
     ]
     property int tabCount: swipeView.count
@@ -82,6 +83,7 @@ Item {
 
                 contentChildren: [
                     ...(root.aiChatEnabled ? [aiChat.createObject()] : []),
+                    voiceAssistant.createObject(),
                     ...(root.translatorEnabled ? [translator.createObject()] : []),
                     ...(root.tabButtonList.length === 0 ? [placeholder.createObject()] : []),
                 ]
@@ -95,6 +97,10 @@ Item {
         Component {
             id: translator
             Translator {}
+        }
+        Component {
+            id: voiceAssistant
+            VoiceAssistant {}
         }
         Component {
             id: placeholder

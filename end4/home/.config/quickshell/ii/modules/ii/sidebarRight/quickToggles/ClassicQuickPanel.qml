@@ -31,6 +31,7 @@ AbstractQuickPanel {
             }
         }
         NightLight {}
+        WaywallenToggle {}
         GameMode {}
         IdleInhibitor {}
         EasyEffectsToggle {}

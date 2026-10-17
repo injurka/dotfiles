@@ -25,6 +25,12 @@ SIL Open Font License 1.1; источник указан в `README.txt` ряд�
 отдельное исключение: конфиги напрямую ссылаются на это семейство.
 Настройки сторонних приложений намеренно не копируются.
 
+Исходники Voice Assistance включены в
+`home/.config/quickshell/ii/scripts/voice-assistant` и устанавливаются
+вместе с Quickshell. Служба использует эту встроенную копию. Подготовка Bun,
+Vosk и локальных настроек описана в
+[README помощника](home/.config/quickshell/ii/scripts/voice-assistant/README.md).
+
 ## Полная установка на Arch Linux или CachyOS
 
 Полный режим вызывает закреплённый установщик end-4, устанавливает его

@@ -6,6 +6,7 @@ import qs.services
 import qs.modules.common.functions
 import Qt5Compat.GraphicalEffects
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
@@ -25,6 +26,7 @@ Item { // Player instance
     property real maxVisualizerValue: 1000 // Max value in the data points
     property int visualizerSmoothing: 2 // Number of points to average for smoothing
     property real radius
+    readonly property bool volumePopupVisible: volumePopup.visible
 
     property string displayedArtFilePath: root.downloaded ? Qt.resolvedUrl(artFilePath) : ""
 
@@ -274,6 +276,73 @@ Item { // Player instance
                         TrackChangeButton {
                             iconName: "skip_next"
                             downAction: () => root.player?.next()
+                        }
+                        TrackChangeButton {
+                            id: volumeButton
+                            visible: (root.player?.volumeSupported && root.player?.canControl) ?? false
+                            iconName: (root.player?.volume ?? 1) === 0 ? "volume_off" : (root.player?.volume ?? 1) < 0.5 ? "volume_down" : "volume_up"
+                            colBackground: volumePopup.opened ? blendedColors.colSecondaryContainer : ColorUtils.transparentize(blendedColors.colSecondaryContainer, 1)
+                            downAction: () => volumePopup.opened ? volumePopup.close() : volumePopup.open()
+
+                            Popup {
+                                id: volumePopup
+                                x: (volumeButton.width - width) / 2
+                                y: -height - 8
+                                width: 48
+                                height: 108
+                                padding: 6
+                                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                background: Rectangle {
+                                    radius: 12
+                                    color: ColorUtils.applyAlpha(blendedColors.colLayer1, 1)
+                                    border.width: 1
+                                    border.color: ColorUtils.applyAlpha(blendedColors.colPrimary, 0.45)
+                                }
+
+                                contentItem: ColumnLayout {
+                                    spacing: 2
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        implicitWidth: 28
+                                        implicitHeight: 72
+
+                                        StyledSlider {
+                                            anchors.centerIn: parent
+                                            width: parent.height
+                                            height: parent.width
+                                            rotation: -90
+                                            configuration: StyledSlider.Configuration.S
+                                            stopIndicatorValues: []
+                                            highlightColor: blendedColors.colPrimary
+                                            trackColor: blendedColors.colSecondaryContainer
+                                            handleColor: blendedColors.colPrimary
+                                            value: root.player?.volume ?? 1
+                                            onMoved: {
+                                                if (root.player?.volumeSupported && root.player?.canControl)
+                                                    root.player.volume = value;
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        implicitWidth: volumeLabel.implicitWidth + 10
+                                        implicitHeight: volumeLabel.implicitHeight + 4
+                                        radius: 6
+                                        color: ColorUtils.applyAlpha(blendedColors.colLayer1, 1)
+
+                                        StyledText {
+                                            id: volumeLabel
+                                            anchors.centerIn: parent
+                                            color: blendedColors.colSubtext
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                            text: `${Math.round((root.player?.volume ?? 1) * 100)}%`
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

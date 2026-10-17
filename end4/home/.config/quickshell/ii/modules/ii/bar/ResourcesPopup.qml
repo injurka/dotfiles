@@ -26,10 +26,15 @@ StyledPopup {
             { icon: "bolt", label: "Load:", value: `${Math.round(ResourceUsage.cpuUsage * 100)}%` },
             ...hardware.cpu
         ] });
-        if (hardware.gpu.length > 0)
-            sections.push({ icon: "developer_board", label: "GPU", rows: hardware.gpu });
-        if (hardware.board.length > 0)
-            sections.push({ icon: "developer_board", label: "Motherboard", rows: hardware.board });
+        for (const gpu of hardware.gpu)
+            sections.push({ icon: "developer_board", label: gpu.label, rows: gpu.rows });
+        sections.push({
+            icon: "developer_board",
+            label: "Motherboard",
+            rows: hardware.board.length > 0 ? hardware.board : [
+                { icon: "device_thermostat", label: "No sensor data from system", value: "" }
+            ]
+        });
         if (hardware.storage.length > 0)
             sections.push({ icon: "hard_drive", label: "Storage", rows: hardware.storage });
         return sections;

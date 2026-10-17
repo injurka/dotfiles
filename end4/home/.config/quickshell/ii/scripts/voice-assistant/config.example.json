@@ -1,0 +1,17 @@
+{
+  "uiMode": "external",
+  "llm": {
+    "provider": "openai",
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "model": ""
+  },
+  "stt": {
+    "provider": "none",
+    "apiKey": "",
+    "apiUrl": "",
+    "model": ""
+  },
+  "skillsProfile": "frontend",
+  "customPrompt": ""
+}

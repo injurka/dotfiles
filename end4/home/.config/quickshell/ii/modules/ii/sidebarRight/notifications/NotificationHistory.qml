@@ -111,7 +111,7 @@ Item {
     }
 
     PagePlaceholder {
-        shown: Notifications.history.length === 0
+        shown: root.visible && Notifications.history.length === 0
         icon: "history"
         description: Translation.tr("No notification history yet")
         descriptionHorizontalAlignment: Text.AlignHCenter

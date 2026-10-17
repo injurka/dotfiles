@@ -1,0 +1,9 @@
+[Unit]
+Description=Voice Assistance background service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.config/quickshell/ii/scripts/voice-assistant
+ExecStart=%h/.bun/bin/bun src/index.ts
+Restart=on-failure
+RestartSec=3
