@@ -187,34 +187,39 @@ GroupButton {
         acceptedButtons: Qt.AllButtons
 
         function toggleEnabled() {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
+            const toggleList = Config.options.sidebar.quickToggles.android.toggles.slice();
             const buttonType = root.buttonData.type;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) {
+            const index = toggleList.findIndex(toggle => toggle.type === buttonType);
+            if (index < 0) {
                 toggleList.push({ type: buttonType, size: 1 });
             } else {
                 toggleList.splice(index, 1);
             }
+            Config.options.sidebar.quickToggles.android.toggles = toggleList;
         }
 
         function toggleSize() {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
+            const toggleList = Config.options.sidebar.quickToggles.android.toggles.slice();
             const buttonType = root.buttonData.type;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) return;
+            const index = toggleList.findIndex(toggle => toggle.type === buttonType);
+            if (index < 0) return;
             toggleList[index].size = 3 - toggleList[index].size; // Alternate between 1 and 2
+            Config.options.sidebar.quickToggles.android.toggles = toggleList;
         }
 
         function movePositionBy(offset) {
-            const index = root.buttonIndex;
-            const toggleList = Config.options.sidebar.quickToggles.android.toggles;
+            const toggleList = Config.options.sidebar.quickToggles.android.toggles.slice();
             const buttonType = root.buttonData.type;
-            const targetIndex = index + offset;
-            if (!toggleList.find(toggle => toggle.type === buttonType)) return;
-            if (targetIndex < 0 || targetIndex >= toggleList.length) return;
+            const visibleToggles = toggleList.filter(toggle => toggle.enabled !== false);
+            const visibleIndex = visibleToggles.findIndex(toggle => toggle.type === buttonType);
+            const targetToggle = visibleToggles[visibleIndex + offset];
+            if (visibleIndex < 0 || !targetToggle) return;
+            const index = toggleList.findIndex(toggle => toggle.type === buttonType);
+            const targetIndex = toggleList.findIndex(toggle => toggle.type === targetToggle.type);
             const temp = toggleList[index];
             toggleList[index] = toggleList[targetIndex];
             toggleList[targetIndex] = temp;
+            Config.options.sidebar.quickToggles.android.toggles = toggleList;
         }
 
         onReleased: (event) => {

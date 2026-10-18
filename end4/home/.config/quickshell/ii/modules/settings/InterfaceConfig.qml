@@ -5,7 +5,69 @@ import qs.modules.common
 import qs.modules.common.widgets
 
 ContentPage {
+    id: root
     forceWidth: true
+
+    readonly property var classicQuickToggleOptions: [
+        { "type": "network", "name": "Internet", "icon": "wifi" },
+        { "type": "bluetooth", "name": "Bluetooth", "icon": "bluetooth" },
+        { "type": "nightLight", "name": "Night Light", "icon": "bedtime" },
+        { "type": "waywallen", "name": "Waywallen", "icon": "wallpaper" },
+        { "type": "gameMode", "name": "Game mode", "icon": "gamepad" },
+        { "type": "idleInhibitor", "name": "Keep awake", "icon": "coffee" },
+        { "type": "easyEffects", "name": "EasyEffects", "icon": "graphic_eq" },
+        { "type": "cloudflareWarp", "name": "Cloudflare WARP", "icon": "cloud_lock" }
+    ]
+    readonly property var androidQuickToggleOptions: [
+        { "type": "network", "name": "Internet", "icon": "wifi" },
+        { "type": "bluetooth", "name": "Bluetooth", "icon": "bluetooth" },
+        { "type": "idleInhibitor", "name": "Keep awake", "icon": "coffee" },
+        { "type": "easyEffects", "name": "EasyEffects", "icon": "graphic_eq" },
+        { "type": "nightLight", "name": "Night Light", "icon": "bedtime" },
+        { "type": "darkMode", "name": "Dark Mode", "icon": "contrast" },
+        { "type": "cloudflareWarp", "name": "Cloudflare WARP", "icon": "cloud_lock" },
+        { "type": "gameMode", "name": "Game mode", "icon": "gamepad" },
+        { "type": "screenSnip", "name": "Screen snip", "icon": "screenshot_region" },
+        { "type": "colorPicker", "name": "Color picker", "icon": "colorize" },
+        { "type": "onScreenKeyboard", "name": "Virtual Keyboard", "icon": "keyboard" },
+        { "type": "mic", "name": "Audio input", "icon": "mic" },
+        { "type": "audio", "name": "Audio output", "icon": "volume_up" },
+        { "type": "notifications", "name": "Notifications", "icon": "notifications" },
+        { "type": "powerProfile", "name": "Power Profile", "icon": "battery_full" },
+        { "type": "musicRecognition", "name": "Identify Music", "icon": "music_note" },
+        { "type": "antiFlashbang", "name": "Anti-flashbang", "icon": "flash_on" }
+    ]
+
+    function quickToggleEnabled(type) {
+        if (Config.options.sidebar.quickToggles.style === "android") {
+            const toggle = Config.options.sidebar.quickToggles.android.toggles.find(item => item.type === type)
+            return toggle !== undefined && toggle.enabled !== false
+        }
+        return Config.options.sidebar.quickToggles.classic.toggles.includes(type)
+    }
+
+    function setQuickToggleEnabled(type, enabled) {
+        if (Config.options.sidebar.quickToggles.style === "android") {
+            const toggles = Config.options.sidebar.quickToggles.android.toggles.slice()
+            const index = toggles.findIndex(item => item.type === type)
+            if (index < 0) {
+                if (!enabled) return
+                toggles.push({ "size": 1, "type": type })
+            } else {
+                const updatedToggle = Object.assign({}, toggles[index])
+                updatedToggle.enabled = enabled
+                toggles[index] = updatedToggle
+            }
+            Config.options.sidebar.quickToggles.android.toggles = toggles
+            return
+        }
+
+        const toggles = Config.options.sidebar.quickToggles.classic.toggles.slice()
+        const index = toggles.indexOf(type)
+        if (enabled && index < 0) toggles.push(type)
+        else if (!enabled && index >= 0) toggles.splice(index, 1)
+        Config.options.sidebar.quickToggles.classic.toggles = toggles
+    }
 
     ContentSection {
         icon: "keyboard"
@@ -520,6 +582,24 @@ ContentPage {
                 stepSize: 1
                 onValueChanged: {
                     Config.options.sidebar.quickToggles.android.columns = value;
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Show in quick panel")
+
+                Repeater {
+                    model: Config.options.sidebar.quickToggles.style === "android"
+                        ? root.androidQuickToggleOptions
+                        : root.classicQuickToggleOptions
+
+                    ConfigSwitch {
+                        required property var modelData
+                        buttonIcon: modelData.icon
+                        text: Translation.tr(modelData.name)
+                        checked: root.quickToggleEnabled(modelData.type)
+                        onCheckedChanged: root.setQuickToggleEnabled(modelData.type, checked)
+                    }
                 }
             }
         }

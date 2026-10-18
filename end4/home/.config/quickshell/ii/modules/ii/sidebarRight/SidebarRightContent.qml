@@ -14,6 +14,7 @@ import qs.modules.ii.sidebarRight.quickToggles.classicStyle
 
 import qs.modules.ii.sidebarRight.bluetoothDevices
 import qs.modules.ii.sidebarRight.pomodoro
+import qs.modules.ii.sidebarRight.powerSaving
 import qs.modules.ii.sidebarRight.nightLight
 import qs.modules.ii.sidebarRight.volumeMixer
 import qs.modules.ii.sidebarRight.wifiNetworks
@@ -27,6 +28,7 @@ Item {
     property bool showAudioInputDialog: false
     property bool showBluetoothDialog: false
     property bool showNightLightDialog: false
+    property bool showPowerSavingDialog: false
     property bool showWifiDialog: false
     property bool showTimerSettingsDialog: false
     property bool editMode: false
@@ -35,6 +37,7 @@ Item {
         target: GlobalStates
         function onSidebarRightOpenChanged() {
             if (!GlobalStates.sidebarRightOpen) {
+                root.showPowerSavingDialog = false;
                 root.showTimerSettingsDialog = false;
                 root.showWifiDialog = false;
                 root.showBluetoothDialog = false;
@@ -162,6 +165,11 @@ Item {
         dialog: TimerSettingsDialog {}
     }
 
+    ToggleDialog {
+        shownPropertyString: "showPowerSavingDialog"
+        dialog: PowerSavingDialog {}
+    }
+
     component ToggleDialog: Loader {
         id: toggleDialogLoader
         required property string shownPropertyString
@@ -209,6 +217,9 @@ Item {
             }
             function onOpenNightLightDialog() {
                 root.showNightLightDialog = true;
+            }
+            function onOpenPowerSavingDialog() {
+                root.showPowerSavingDialog = true;
             }
             function onOpenWifiDialog() {
                 root.showWifiDialog = true;

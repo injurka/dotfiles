@@ -532,6 +532,9 @@ Singleton {
                             { "size": 2, "type": "nightLight" }
                         ]
                     }
+                    property JsonObject classic: JsonObject {
+                        property list<string> toggles: [ "network", "bluetooth", "nightLight", "waywallen", "gameMode", "idleInhibitor", "easyEffects", "cloudflareWarp" ]
+                    }
                 }
 
                 property JsonObject quickSliders: JsonObject {
