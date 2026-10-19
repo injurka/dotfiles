@@ -6,8 +6,9 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
-    property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
-    property string formattedTime: DateTime.time
+    readonly property string dayNumber: Qt.locale().toString(DateTime.clock.date, "d")
+    readonly property string weekday: Qt.locale().toString(DateTime.clock.date, "dddd")
+    readonly property string monthYear: Qt.locale().toString(DateTime.clock.date, "MMMM yyyy")
     property string formattedUptime: DateTime.uptime
     readonly property bool hasPendingTasks: Todo.list.some(item => !item.done)
     property string todosSection: getUpcomingTodos()
@@ -34,19 +35,82 @@ StyledPopup {
     }
 
     ColumnLayout {
-        id: columnLayout
+        id: content
         anchors.centerIn: parent
-        spacing: 4
+        implicitWidth: 300
+        width: implicitWidth
+        spacing: 12
 
-        StyledPopupHeaderRow {
-            icon: "calendar_month"
-            label: root.formattedDate
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            StyledText {
+                Layout.preferredWidth: 42
+                horizontalAlignment: Text.AlignHCenter
+                text: root.dayNumber
+                font {
+                    pixelSize: 36
+                    weight: Font.DemiBold
+                }
+                color: Appearance.colors.colPrimary
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.weekday
+                    elide: Text.ElideRight
+                    font {
+                        pixelSize: Appearance.font.pixelSize.large
+                        weight: Font.DemiBold
+                    }
+                    color: Appearance.colors.colOnSurface
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.monthYear
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnSurfaceVariant
+                }
+            }
         }
 
-        StyledPopupValueRow {
-            icon: "timelapse"
-            label: Translation.tr("System uptime:")
-            value: root.formattedUptime
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: Appearance.colors.colOutlineVariant
+            opacity: 0.6
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            MaterialSymbol {
+                text: "timelapse"
+                iconSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnSurfaceVariant
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("System uptime:")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                wrapMode: Text.Wrap
+                color: Appearance.colors.colOnSurfaceVariant
+            }
+
+            StyledText {
+                text: root.formattedUptime
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colOnSurfaceVariant
+            }
         }
 
         // Tasks
