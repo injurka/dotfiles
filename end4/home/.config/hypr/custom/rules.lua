@@ -62,3 +62,6 @@ hl.window_rule({ match = { class = "^(firefox)$", title = "^(Library)$" }, float
 hl.window_rule({ match = { class = "^(steam_app_.*|deadlock|deadlock.exe|project8|cs2)$" }, immediate = true })
 
 -- --------------------------------------------------------------------
+
+-- Calendar is a regular window so native Hyprland move/resize bindings apply.
+hl.window_rule({ match = { title = "^(Calendar — end4)$" }, float = true, center = true })

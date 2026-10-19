@@ -15,8 +15,62 @@ Singleton {
     property date now: new Date()
     readonly property string path: Directories.state + "/user/agenda.json"
 
+    property string calendarScope: "all"
+    property var workEvents: []
+    property bool workConfigured: false
+    property string workError: ""
+    property string workUpdatedAt: ""
+    property string workRangeStart: ""
+    property string workRangeEnd: ""
+    property string pendingWorkUrl: ""
+    readonly property bool workBusy: workProcess.running
+
     function day(value) {
-        return Schedule.occurrences(data, value);
+        return Schedule.mergedDay(data, value, workEvents, calendarScope);
+    }
+    function workAction(action, url = "") {
+        if (workProcess.running) return;
+        pendingWorkUrl = url;
+        workProcess.command = ["bash", Directories.scriptPath + "/calendar/work-calendar.sh", action];
+        workProcess.stdinEnabled = action === "connect";
+        workProcess.running = true;
+    }
+    Component.onCompleted: workAction("load")
+    Process {
+        id: workProcess
+        onStarted: {
+            if (root.pendingWorkUrl) {
+                write(JSON.stringify({url: root.pendingWorkUrl}));
+                root.pendingWorkUrl = "";
+                stdinEnabled = false;
+            }
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text);
+                    root.workEvents = result.events || [];
+                    root.workConfigured = result.configured;
+                    root.workError = result.error || "";
+                    root.workUpdatedAt = result.updatedAt || "";
+                    root.workRangeStart = result.rangeStart || "";
+                    root.workRangeEnd = result.rangeEnd || "";
+                } catch (exception) {
+                    root.workError = "Could not read work calendar response";
+                }
+            }
+        }
+        onExited: (code, status) => {
+            if (code !== 0) root.workError = "Could not start work calendar helper";
+            else if (command[2] === "load" && root.workConfigured)
+                Qt.callLater(() => root.workAction("sync"));
+        }
+    }
+    Timer {
+        interval: 15 * 60 * 1000
+        running: root.workConfigured
+        repeat: true
+        onTriggered: if (!root.workBusy) root.workAction("sync")
     }
 
     function save(next, remember = true) {
@@ -72,6 +126,7 @@ Singleton {
     }
 
     function skip(event) {
+        if (event.readOnly) return false;
         const next = JSON.parse(JSON.stringify(data));
         next.exceptions[event.occurrenceId] = {
             "skipped": true
@@ -80,15 +135,16 @@ Singleton {
     }
 
     function move(event, delta) {
+        if (event.readOnly) return false;
         const next = JSON.parse(JSON.stringify(data));
         const start = event.originalStart + delta, end = event.originalEnd + delta;
         if (start < 0 || start >= 1440)
             return;
 
-        next.exceptions[event.occurrenceId] = {
+        next.exceptions[event.occurrenceId] = Object.assign({}, next.exceptions[event.occurrenceId] || {}, {
             "start": start,
             "end": end
-        };
+        });
         save(next);
     }
 
@@ -102,7 +158,9 @@ Singleton {
         save(next);
     }
 
-    function store(value, title, from, to, days, editing, wholeSeries, color) {
+    function store(value, title, from, to, days, editing, wholeSeries, color, description = "") {
+        if (editing?.readOnly || typeof description !== "string") return false;
+        description = description.trim();
         const start = Schedule.minutes(from), finish = Schedule.minutes(to);
         if (!title.trim() || start < 0 || finish < 0 || start === finish || !/^#[0-9a-fA-F]{6}$/.test(color))
             return false;
@@ -116,6 +174,7 @@ Singleton {
                     "title": title.trim(),
                     "start": start,
                     "end": end,
+                    "description": description,
                     "color": color
                 };
             } else {
@@ -130,7 +189,8 @@ Singleton {
                                   "title": title.trim(),
                                   "start": start,
                                   "end": end,
-                                  "color": color
+                                  "description": description,
+                    "color": color
                               });
                 if (editing.source === "routine") {
                     if (!days.length)
@@ -145,7 +205,8 @@ Singleton {
                 "title": title.trim(),
                 "start": start,
                 "end": end,
-                "color": color
+                "description": description,
+                    "color": color
             };
             if (days.length) {
                 next.routines.push(Object.assign(entry, {
@@ -163,6 +224,7 @@ Singleton {
     }
 
     function remove(event, wholeSeries) {
+        if (event.readOnly) return false;
         if (event.source === "routine" && !wholeSeries) {
             return skip(event);
         }

@@ -11,13 +11,17 @@ import qs.modules.common
 import qs.modules.common.widgets
 import "schedule.js" as Schedule
 
-PanelWindow {
+FloatingWindow {
     id: root
     property bool opened: false
     property date selectedDate: new Date()
     property bool weekMode: false
     property string page: "overview"
     property bool confirmingClear: false
+    property bool advancedSettingsOpen: false
+    property date previewDate: new Date()
+    property bool replacingWorkLink: false
+    property var viewingEvent: null
     property var editingEvent: null
     property var repeatDays: [1, 2, 3, 4, 5]
     property bool repeating: false
@@ -28,31 +32,127 @@ PanelWindow {
     property string presetStatus: ""
     property bool presetSucceeded: false
     property string presetFilePath: ""
+    property string exportFilePath: ""
+    property string exportPayload: ""
+    property string exportStatus: ""
+    property bool exportSucceeded: false
+    property bool exportWritePending: false
     readonly property var days: Schedule.week(selectedDate)
     readonly property var events: Agenda.day(selectedDate)
+    readonly property var dailyGroups: Schedule.overlapGroups(events, Agenda.calendarScope === "all")
     readonly property bool todaySelected: !weekMode && Schedule.key(selectedDate) === Schedule.key(Agenda.now)
     readonly property int weekEventCount: days.reduce((count, day) => count + Agenda.day(day).length, 0)
     property real hourHeight: 64
     readonly property var uiLocale: Qt.locale(Translation.languageCode === "he_HE" ? "he_IL" : Translation.languageCode)
+    property var windowSizes: Schedule.windowSizes(null)
+    property bool sizeStorageReady: false
+    property string sizeError: ""
+    readonly property bool wideWindow: page === "overview" && weekMode
+    readonly property var windowSize: Schedule.windowSize(windowSizes, wideWindow, screen?.width || 1280, screen?.height || 1080)
+    title: "Calendar — end4"
+    minimumSize: Qt.size(windowSize.minWidth, windowSize.minHeight)
+    maximumSize: Qt.size(Math.max(1, (screen?.width || 1280) - 40), Math.max(1, (screen?.height || 1080) - 40))
+    onClosed: {
+        captureWindowSize();
+        opened = false;
+    }
+    onWidthChanged: if (visible && sizeStorageReady && !applyingWindowSize) sizeSaveTimer.restart()
+    onHeightChanged: if (visible && sizeStorageReady && !applyingWindowSize) sizeSaveTimer.restart()
+    onWideWindowChanged: applyWindowSize()
+    property bool applyingWindowSize: false
     visible: opened
-    exclusiveZone: 0
-    implicitWidth: Math.min(page === "overview" && weekMode ? 1040 : 560, (screen?.width || 1280) - 40)
-    implicitHeight: Math.min(880, (screen?.height || 1080) - 40)
-    color: "transparent"
-    WlrLayershell.namespace: "quickshell:agenda"
-    WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    implicitWidth: windowSize.width
+    implicitHeight: windowSize.height
+    color: Appearance.m3colors.m3surfaceContainer
 
+    function applyWindowSize() {
+        applyingWindowSize = true;
+        sizeSaveTimer.stop();
+        Qt.callLater(() => {
+            root.width = root.windowSize.width;
+            root.height = root.windowSize.height;
+            root.applyingWindowSize = false;
+        });
+    }
+    function captureWindowSize() {
+        if (!sizeStorageReady || applyingWindowSize || maximized || fullscreen || minimized) return;
+        const next = Schedule.resizedWindow(windowSizes, wideWindow, width, height, screen?.width || 1280, screen?.height || 1080);
+        if (!next) return;
+        windowSizes = next;
+        rememberWindowSize();
+    }
+    Timer {
+        id: sizeSaveTimer
+        interval: 400
+        onTriggered: root.captureWindowSize()
+    }
+    function rememberWindowSize() {
+        if (sizeStorageReady) windowSizeStorage.setText(JSON.stringify(windowSizes));
+    }
+    function resetWindowSize() {
+        windowSizes = Schedule.windowSizes(null);
+        applyWindowSize();
+        rememberWindowSize();
+    }
+    FileView {
+        id: windowSizeStorage
+        path: Directories.state + "/user/calendar-window.json"
+        onLoaded: {
+            try {
+                root.windowSizes = Schedule.windowSizes(JSON.parse(text()));
+                root.sizeStorageReady = true;
+                root.applyWindowSize();
+                root.sizeError = "";
+            } catch (error) {
+                root.sizeError = Translation.tr("Could not read window size settings");
+            }
+        }
+        onLoadFailed: error => {
+            root.sizeStorageReady = error === FileViewError.FileNotFound;
+            if (!root.sizeStorageReady) root.sizeError = Translation.tr("Could not read window size settings");
+        }
+        onSaveFailed: root.sizeError = Translation.tr("Could not save window size settings")
+        onSaved: root.sizeError = ""
+    }
+    function compactDescription(event) { return Schedule.compactDescription(event); }
+    function eventDate(event) { return Schedule.eventDate(event, selectedDate, uiLocale, Translation.tr("All day")); }
+    function isMeetingLink(url) { return Schedule.isMeetingLink(url); }
+    function linkCaption(url) { return Schedule.linkCaption(url, Translation.tr("Join meeting")); }
+    function showPreview(event, item, day) {
+        viewingEvent = event;
+        previewDate = day;
+        const point = item.mapToItem(frame, 0, 0);
+        const right = point.x + item.width + 10;
+        meetingPreview.x = Math.max(12, Math.min(right + meetingPreview.width <= frame.width - 12
+                                   ? right : point.x - meetingPreview.width - 10, frame.width - meetingPreview.width - 12));
+        meetingPreview.y = Math.max(12, Math.min(point.y, frame.height - meetingPreview.height - 12));
+        meetingPreview.open();
+    }
     function openDate(value) {
         selectedDate = value;
         page = "overview";
         opened = true;
     }
+    function openActivity(event) {
+        viewingEvent = event;
+        page = "details";
+    }
     function openEditor(event, start) {
+        if (event?.readOnly) {
+            viewingEvent = event;
+            page = "details";
+            return;
+        }
+        if (!event && Agenda.calendarScope === "work") {
+            Qt.openUrlExternally("https://mail.prosebya.ru/owa/#path=/calendar");
+            return;
+        }
         editingEvent = event || null;
         wholeSeries = false;
         repeating = event ? event.source === "routine" : false;
         repeatDays = event?.days || [selectedDate.getDay()];
         titleField.text = event?.title || "";
+        descriptionField.text = event?.description || "";
         colorField.text = event?.color || "#c9aceb";
         startField.text = Schedule.time(event ? event.originalStart : (start === undefined ? 1080 : start));
         endField.text = Schedule.time(event ? event.originalEnd : (start === undefined ? 1140 : start + 60));
@@ -66,6 +166,7 @@ PanelWindow {
         if (!event)
             return;
         titleField.text = event.title;
+        descriptionField.text = event.description || "";
         colorField.text = event.color || "#c9aceb";
         startField.text = Schedule.time(series ? event.start : event.originalStart);
         endField.text = Schedule.time(series ? event.end : event.originalEnd);
@@ -83,10 +184,14 @@ PanelWindow {
         }
         if (Agenda.store(selectedDate, titleField.text, startField.text, endField.text, repeating ? repeatDays :
                                                                                                     [], editingEvent,
-                         wholeSeries, colorField.text))
+                         wholeSeries, colorField.text, descriptionField.text))
             page = "overview";
         else
             formError = Translation.tr("Enter a title and HH:MM times. Start and end must differ.");
+    }
+    function writeCalendarExport() {
+        exportWritePending = false;
+        calendarExportWriter.setText(exportPayload);
     }
     function scrollWeek() {
         Qt.callLater(() => {
@@ -114,20 +219,30 @@ PanelWindow {
         const minute = Agenda.now.getHours() * 60 + Agenda.now.getMinutes();
         return minute >= event.start && minute < event.end;
     }
-    onWeekModeChanged: if (weekMode)
-                           scrollWeek()
-    onSelectedDateChanged: if (weekMode)
-                               scrollWeek()
-    onPageChanged: if (page === "overview" && weekMode)
-                       scrollWeek()
+    onWeekModeChanged: {
+        meetingPreview.close();
+        if (weekMode) scrollWeek();
+    }
+    onSelectedDateChanged: {
+        meetingPreview.close();
+        if (weekMode) scrollWeek();
+    }
+    onPageChanged: {
+        meetingPreview.close();
+        if (page === "overview" && weekMode) scrollWeek();
+    }
     onVisibleChanged: {
         if (visible) {
-            GlobalFocusGrab.addDismissable(root);
+            applyWindowSize();
             frame.forceActiveFocus();
             scrollWeek();
         } else {
+            meetingPreview.close();
             altPressed = false;
-            GlobalFocusGrab.removeDismissable(root);
+            if (sizeSaveTimer.running) {
+                sizeSaveTimer.stop();
+                captureWindowSize();
+            }
         }
     }
     IpcHandler {
@@ -145,18 +260,10 @@ PanelWindow {
                 root.openDate(new Date());
         }
     }
-    Connections {
-        target: GlobalFocusGrab
-        function onDismissed() {
-            root.opened = false;
-        }
-    }
     FileDialog {
         id: presetDialog
         title: Translation.tr("Choose JSON preset")
         nameFilters: ["JSON (*.json)"]
-        onVisibleChanged: if (!visible && root.opened)
-                              GlobalFocusGrab.addDismissable(root)
         onAccepted: {
             const url = selectedFile.toString();
             if (!url.startsWith("file:///")) {
@@ -183,6 +290,56 @@ PanelWindow {
                           root.presetSucceeded = false;
                           root.presetStatus = Translation.tr("Could not read JSON file");
                       }
+    }
+
+    FileDialog {
+        id: calendarExportDialog
+        title: Translation.tr("Export calendar")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: ["JSON (*.json)"]
+        onAccepted: {
+            const url = selectedFile.toString();
+            if (!url.startsWith("file:///")) {
+                root.exportSucceeded = false;
+                root.exportStatus = Translation.tr("Choose a local file location");
+                return;
+            }
+            const previousPath = root.exportFilePath;
+            const nextPath = decodeURIComponent(url.slice(7));
+            root.exportPayload = JSON.stringify(Agenda.data, null, 2);
+            root.exportStatus = "";
+            root.exportSucceeded = false;
+            root.exportWritePending = true;
+            root.exportFilePath = nextPath;
+            if (previousPath === root.exportFilePath)
+                calendarExportWriter.reload();
+        }
+    }
+    FileView {
+        id: calendarExportWriter
+        path: root.exportFilePath
+        onLoaded: if (root.exportWritePending)
+                      root.writeCalendarExport()
+        onLoadFailed: error => {
+            if (!root.exportWritePending)
+                return;
+            if (error === FileViewError.FileNotFound) {
+                root.writeCalendarExport();
+            } else {
+                root.exportWritePending = false;
+                root.exportSucceeded = false;
+                root.exportStatus = Translation.tr("Could not export calendar: %1").arg(error);
+            }
+        }
+        onSaved: {
+            root.exportSucceeded = true;
+            root.exportStatus = Translation.tr("Calendar exported");
+        }
+        onSaveFailed: error => {
+            root.exportSucceeded = false;
+            root.exportStatus = Translation.tr("Could not export calendar: %1").arg(error);
+        }
     }
 
     component Label: StyledText {
@@ -246,6 +403,118 @@ PanelWindow {
             font.family: "Maple Mono"
         }
     }
+    component DailyActivityCard: RippleButton {
+        id: dailyCard
+        required property var modelData
+        property bool grouped: false
+        readonly property bool activeNow: root.isActive(modelData, root.selectedDate)
+        Layout.fillWidth: true
+        implicitHeight: grouped ? 76 : 90
+        buttonRadius: Appearance.rounding.normal
+        colBackground: activeNow ? Appearance.colors.colSecondaryContainer : grouped ? "transparent" : Appearance.colors.colLayer1
+        colBackgroundHover: activeNow ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colLayer1Hover
+        downAction: () => root.openActivity(modelData)
+        contentItem: RowLayout {
+            spacing: 16
+            Rectangle {
+                implicitWidth: dailyCard.activeNow ? 5 : 3
+                Layout.fillHeight: true
+                radius: 2
+                color: !dailyCard.grouped && dailyCard.modelData.conflict ? Appearance.m3colors.m3error :
+                                                      dailyCard.modelData.color
+                                                      || Appearance.colors.colPrimary
+            }
+            ColumnLayout {
+                spacing: 4
+                Label {
+                    text: Schedule.time(dailyCard.modelData.start)
+                    font.pixelSize: 17
+                }
+                Label {
+                    text: Schedule.time(dailyCard.modelData.end)
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Label {
+                    Layout.fillWidth: true
+                    text: dailyCard.modelData.title
+                    font.pixelSize: 16
+                    elide: Text.ElideRight
+                }
+                Label {
+                    text: dailyCard.modelData.source === "work" ? Translation.tr("Work · Outlook") : !dailyCard.grouped && dailyCard.modelData.conflict ? Translation.tr("Schedule conflict") :
+                                                         dailyCard.modelData.source
+                                                         === "routine"
+                                                         ? Translation.tr("Recurring activity") :
+                                                           Translation.tr("Personal event")
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
+                }
+            }
+            MaterialSymbol {
+                text: "chevron_right"
+                iconSize: 20
+                color: Appearance.colors.colSubtext
+            }
+        }
+    }
+
+    component SettingsRow: Item {
+        id: setting
+        property string title: ""
+        property string description: ""
+        property string symbol: ""
+        default property alias controls: rowActions.data
+        Layout.fillWidth: true
+        implicitHeight: Math.max(44, rowBody.implicitHeight)
+        data: [
+            RowLayout {
+                id: rowBody
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+                MaterialSymbol {
+                    visible: setting.symbol.length > 0
+                    text: setting.symbol
+                    iconSize: 22
+                    color: Appearance.colors.colSubtext
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Label {
+                        Layout.fillWidth: true
+                        text: setting.title
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                    }
+                    Label {
+                        visible: setting.description.length > 0
+                        Layout.fillWidth: true
+                        text: setting.description
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+                RowLayout {
+                    id: rowActions
+                    spacing: 8
+                }
+            }
+        ]
+    }
+    component SettingsDivider: Rectangle {
+        Layout.fillWidth: true
+        implicitHeight: 1
+        color: Qt.alpha(Appearance.colors.colOutlineVariant, 0.5)
+    }
     component Section: Rectangle {
         id: section
         default property alias contents: body.data
@@ -282,13 +551,94 @@ PanelWindow {
         onTextChanged: root.formError = ""
     }
 
+    Popup {
+        id: meetingPreview
+        parent: frame
+        width: Math.min(360, frame.width - 24)
+        height: Math.min(previewBody.implicitHeight + 32, frame.height - 24, 440)
+        padding: 16
+        focus: true
+        onOpened: y = Math.max(12, Math.min(y, frame.height - height - 12))
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            radius: Appearance.rounding.normal
+            color: Appearance.m3colors.m3surfaceContainerHigh
+            border.width: 1
+            border.color: Appearance.colors.colOutlineVariant
+        }
+        contentItem: ScrollView {
+            clip: true
+            contentWidth: availableWidth
+            ColumnLayout {
+                id: previewBody
+                width: parent.width
+                spacing: 12
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.viewingEvent?.title || ""
+                        textFormat: Text.PlainText
+                        font.pixelSize: 16
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
+                    }
+                    IconButton {
+                        symbol: "close"
+                        hint: Translation.tr("Close")
+                        implicitWidth: 30
+                        implicitHeight: 30
+                        downAction: () => meetingPreview.close()
+                    }
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: Schedule.eventDate(root.viewingEvent, root.previewDate, root.uiLocale, Translation.tr("All day"))
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
+                    wrapMode: Text.Wrap
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: root.compactDescription(root.viewingEvent)
+                    textFormat: Text.PlainText
+                    font.pixelSize: 13
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 5
+                    elide: Text.ElideRight
+                }
+                Action {
+                    Layout.fillWidth: true
+                    visible: (root.viewingEvent?.links || []).some(url => root.isMeetingLink(url))
+                    symbol: "videocam"
+                    label: Translation.tr("Join meeting")
+                    selected: true
+                    downAction: () => {
+                        const url = (root.viewingEvent?.links || []).find(url => root.isMeetingLink(url));
+                        if (url) Qt.openUrlExternally(url);
+                    }
+                }
+                Action {
+                    Layout.fillWidth: true
+                    label: Translation.tr("View details")
+                    symbol: "arrow_forward"
+                    downAction: () => {
+                        meetingPreview.close();
+                        root.selectedDate = root.previewDate;
+                        root.openActivity(root.viewingEvent);
+                    }
+                }
+            }
+        }
+    }
+
     Rectangle {
         id: frame
         anchors.fill: parent
-        radius: Appearance.rounding.large
+        // Hyprland owns the floating window's border and rounded corners.
         color: Appearance.m3colors.m3surfaceContainer
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
         focus: true
         Keys.onEscapePressed: {
             if (root.page !== "overview")
@@ -333,7 +683,7 @@ PanelWindow {
                         font.pixelSize: 16
                     }
                     Label {
-                        text: root.page === "editor" ? (root.editingEvent ? Translation.tr("Edit activity") :
+                        text: root.page === "details" ? Translation.tr("Activity details") : root.page === "editor" ? (root.editingEvent ? Translation.tr("Edit activity") :
                                                                             Translation.tr("New activity")) : root.page
                                                        === "settings" ? Translation.tr("Settings") : root.weekMode
                                                                         ? Translation.tr("Week plan") : Translation.tr("Day schedule")
@@ -343,6 +693,38 @@ PanelWindow {
                 }
                 Item {
                     Layout.fillWidth: true
+                }
+                StyledComboBox {
+                    id: calendarSourcePicker
+                    visible: root.page === "overview"
+                    leftPadding: 10
+                    rightPadding: 28
+                    topPadding: 0
+                    bottomPadding: 0
+                    contentItem: StyledText {
+                        text: calendarSourcePicker.displayText
+                        color: Appearance.colors.colOnSecondaryContainer
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                    indicator: MaterialSymbol {
+                        x: calendarSourcePicker.width - width - 8
+                        y: (calendarSourcePicker.height - height) / 2
+                        text: "keyboard_arrow_down"
+                        iconSize: 18
+                        color: Appearance.colors.colOnSecondaryContainer
+                        rotation: calendarSourcePicker.popup.visible ? 180 : 0
+                    }
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: Math.min(160, root.width * 0.29) * 0.65
+                    textRole: "label"
+                    model: [
+                        {label: Translation.tr("Personal"), value: "personal"},
+                        {label: Translation.tr("Work"), value: "work"},
+                        {label: Translation.tr("All"), value: "all"}
+                    ]
+                    currentIndex: Agenda.calendarScope === "personal" ? 0 : Agenda.calendarScope === "work" ? 1 : 2
+                    onActivated: index => { meetingPreview.close(); Agenda.calendarScope = model[index].value; }
                 }
                 IconButton {
                     visible: root.page === "overview"
@@ -373,6 +755,19 @@ PanelWindow {
                 text: Agenda.error
                 wrapMode: Text.Wrap
                 color: Appearance.m3colors.m3error
+            }
+
+            Label {
+                visible: root.page === "overview" && Agenda.calendarScope !== "personal"
+                         && (!Agenda.workConfigured || Agenda.workError !== "" || Schedule.key(root.selectedDate) < Agenda.workRangeStart
+                             || Schedule.key(root.selectedDate) >= Agenda.workRangeEnd)
+                Layout.fillWidth: true
+                text: Agenda.workError || (!Agenda.workConfigured
+                      ? Translation.tr("Connect your work calendar in Settings")
+                      : Translation.tr("Work events are outside the synced date range"))
+                wrapMode: Text.Wrap
+                font.pixelSize: 12
+                color: Appearance.colors.colSubtext
             }
 
             ColumnLayout {
@@ -440,62 +835,49 @@ PanelWindow {
                         width: parent.width
                         spacing: 10
                         Repeater {
-                            model: root.events
-                            RippleButton {
-                                id: dailyCard
+                            model: root.dailyGroups
+                            Rectangle {
+                                id: groupBlock
                                 required property var modelData
-                                readonly property bool activeNow: root.isActive(modelData, root.selectedDate)
                                 Layout.fillWidth: true
-                                implicitHeight: 90
-                                buttonRadius: Appearance.rounding.normal
-                                colBackground: activeNow ? Appearance.colors.colSecondaryContainer : Appearance.colors.colLayer1
-                                colBackgroundHover: activeNow ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colLayer1Hover
-                                downAction: () => root.openEditor(modelData)
-                                contentItem: RowLayout {
-                                    spacing: 16
-                                    Rectangle {
-                                        implicitWidth: dailyCard.activeNow ? 5 : 3
-                                        Layout.fillHeight: true
-                                        radius: 2
-                                        color: dailyCard.modelData.conflict ? Appearance.m3colors.m3error :
-                                                                              dailyCard.modelData.color
-                                                                              || Appearance.colors.colPrimary
-                                    }
-                                    ColumnLayout {
-                                        spacing: 4
-                                        Label {
-                                            text: Schedule.time(dailyCard.modelData.start)
-                                            font.pixelSize: 17
-                                        }
-                                        Label {
-                                            text: Schedule.time(dailyCard.modelData.end)
-                                            font.pixelSize: 12
+                                implicitHeight: groupContent.implicitHeight + (modelData.overlapping ? 24 : 0)
+                                radius: Appearance.rounding.normal
+                                color: modelData.overlapping ? Appearance.colors.colLayer1 : "transparent"
+                                border.width: modelData.overlapping ? 1 : 0
+                                border.color: Qt.alpha(Appearance.colors.colOutlineVariant, 0.6)
+                                ColumnLayout {
+                                    id: groupContent
+                                    x: groupBlock.modelData.overlapping ? 12 : 0
+                                    y: groupBlock.modelData.overlapping ? 12 : 0
+                                    width: parent.width - 2 * x
+                                    spacing: groupBlock.modelData.overlapping ? 4 : 0
+                                    RowLayout {
+                                        visible: groupBlock.modelData.overlapping
+                                        Layout.fillWidth: true
+                                        Layout.leftMargin: 8
+                                        Layout.rightMargin: 8
+                                        Layout.bottomMargin: 4
+                                        spacing: 8
+                                        MaterialSymbol {
+                                            text: "layers"
+                                            iconSize: 18
                                             color: Appearance.colors.colSubtext
                                         }
-                                    }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 6
                                         Label {
                                             Layout.fillWidth: true
-                                            text: dailyCard.modelData.title
-                                            font.pixelSize: 16
-                                            elide: Text.ElideRight
+                                            text: Schedule.time(groupBlock.modelData.start) + "–" + Schedule.time(groupBlock.modelData.end)
+                                            font.pixelSize: 12
+                                            color: Appearance.colors.colSubtext
                                         }
                                         Label {
-                                            text: dailyCard.modelData.conflict ? Translation.tr("Schedule conflict") :
-                                                                                 dailyCard.modelData.source
-                                                                                 === "routine"
-                                                                                 ? Translation.tr("Recurring activity") :
-                                                                                   Translation.tr("Personal event")
+                                            text: Translation.tr("%1 overlapping activities").arg(groupBlock.modelData.events.length)
                                             font.pixelSize: 12
                                             color: Appearance.colors.colSubtext
                                         }
                                     }
-                                    MaterialSymbol {
-                                        text: "chevron_right"
-                                        iconSize: 20
-                                        color: Appearance.colors.colSubtext
+                                    Repeater {
+                                        model: groupBlock.modelData.events
+                                        DailyActivityCard { grouped: groupBlock.modelData.overlapping }
                                     }
                                 }
                             }
@@ -580,6 +962,7 @@ PanelWindow {
                     Layout.fillHeight: true
                     Flickable {
                         id: weekScroll
+                        onContentYChanged: meetingPreview.close()
                         onHeightChanged: if (weekViewport.visible)
                                              root.scrollWeek()
                         anchors.fill: parent
@@ -643,8 +1026,7 @@ PanelWindow {
                                             colBackgroundHover: Qt.alpha(modelData.color
                                                                          || Appearance.colors.colPrimary, 0.3)
                                             downAction: () => {
-                                                root.selectedDate = dayColumn.modelData;
-                                                root.openEditor(modelData);
+                                                root.showPreview(modelData, eventBlock, dayColumn.modelData);
                                             }
                                             Rectangle {
                                                 width: eventBlock.activeNow ? 5 : 3
@@ -671,10 +1053,13 @@ PanelWindow {
                                                     elide: Text.ElideRight
                                                 }
                                             }
-                                            StyledToolTip {
-                                                text: eventBlock.modelData.title + "\n" + eventBlock.timeRange
-                                                font.family: "Maple Mono"
-                                                delay: 500
+                                            HoverHandler { id: eventHover }
+                                            Timer {
+                                                interval: 500
+                                                running: eventHover.hovered && root.page === "overview" && root.weekMode && !meetingPreview.visible
+                                                onTriggered: if (eventBlock.visible && root.opened) {
+                                                    root.showPreview(eventBlock.modelData, eventBlock, dayColumn.modelData);
+                                                }
                                             }
                                         }
                                     }
@@ -713,6 +1098,111 @@ PanelWindow {
             }
 
             ScrollView {
+                visible: root.page === "details"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: availableWidth
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 16
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.viewingEvent?.title || ""
+                        font.pixelSize: 22
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.eventDate(root.viewingEvent)
+                        wrapMode: Text.Wrap
+                        color: Appearance.colors.colSubtext
+                    }
+                    Label {
+                        visible: text.length > 0 && !/^https?:\/\//i.test(text)
+                        Layout.fillWidth: true
+                        text: root.viewingEvent?.location || ""
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                    }
+                    TextArea {
+                        Layout.fillWidth: true
+                        implicitHeight: Math.max(60, contentHeight + topPadding + bottomPadding)
+                        text: Schedule.descriptionHtml(root.viewingEvent, Translation.tr("Join meeting"))
+                              || Schedule.escapeHtml(root.viewingEvent?.readOnly
+                                  ? Translation.tr("No description. Choose Full details in Outlook calendar publishing settings, then refresh the calendar.")
+                                  : Translation.tr("No description yet. Add one using Edit activity."))
+                        textFormat: TextEdit.RichText
+                        palette.link: Appearance.colors.colPrimary
+                        onLinkActivated: link => { if (/^https?:\/\//i.test(link)) Qt.openUrlExternally(link); }
+                        readOnly: true
+                        selectByMouse: true
+                        wrapMode: TextEdit.Wrap
+                        font.family: "Maple Mono"
+                        font.pixelSize: 13
+                        color: Appearance.colors.colOnLayer0
+                        selectedTextColor: Appearance.m3colors.m3onPrimary
+                        selectionColor: Appearance.colors.colPrimary
+                        padding: 0
+                        background: null
+                    }
+                    TextArea {
+                        Layout.fillWidth: true
+                        visible: text.length > 0
+                        implicitHeight: contentHeight + topPadding + bottomPadding
+                        text: Schedule.extraLinksHtml(root.viewingEvent, Translation.tr("Join meeting"))
+                        textFormat: TextEdit.RichText
+                        palette.link: Appearance.colors.colPrimary
+                        onLinkActivated: link => { if (/^https?:\/\//i.test(link)) Qt.openUrlExternally(link); }
+                        readOnly: true
+                        selectByMouse: true
+                        wrapMode: TextEdit.Wrap
+                        font.family: "Maple Mono"
+                        font.pixelSize: 13
+                        color: Appearance.colors.colPrimary
+                        padding: 0
+                        background: null
+                    }
+                }
+            }
+            ColumnLayout {
+                visible: root.page === "details"
+                Layout.fillWidth: true
+                spacing: 12
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 1
+                    color: Appearance.colors.colOutlineVariant
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Action {
+                        Layout.fillWidth: true
+                        symbol: root.viewingEvent?.readOnly ? "open_in_new" : "edit"
+                        label: root.viewingEvent?.readOnly ? Translation.tr("Open Outlook") : Translation.tr("Edit activity")
+                        downAction: () => {
+                            if (root.viewingEvent?.readOnly)
+                                Qt.openUrlExternally("https://mail.prosebya.ru/owa/#path=/calendar");
+                            else root.openEditor(root.viewingEvent);
+                        }
+                    }
+                    Action {
+                        Layout.fillWidth: true
+                        visible: (root.viewingEvent?.links || []).some(url => root.isMeetingLink(url))
+                        symbol: "videocam"
+                        label: Translation.tr("Join meeting")
+                        primary: true
+                        downAction: () => {
+                            const url = (root.viewingEvent?.links || []).find(url => root.isMeetingLink(url));
+                            if (url) Qt.openUrlExternally(url);
+                        }
+                    }
+                }
+            }
+
+            ScrollView {
                 visible: root.page === "editor"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -737,6 +1227,32 @@ PanelWindow {
                             id: titleField
                             Layout.fillWidth: true
                             placeholderText: Translation.tr("For example, English")
+                        }
+                        Label {
+                            text: Translation.tr("Description")
+                            color: Appearance.colors.colSubtext
+                        }
+                        TextArea {
+                            id: descriptionField
+                            Layout.fillWidth: true
+                            implicitHeight: Math.max(120, contentHeight + topPadding + bottomPadding)
+                            placeholderText: Translation.tr("Notes, a plan or a meeting link")
+                            textFormat: TextEdit.PlainText
+                            wrapMode: TextEdit.Wrap
+                            selectByMouse: true
+                            font.family: "Maple Mono"
+                            font.pixelSize: 14
+                            color: Appearance.colors.colOnLayer0
+                            placeholderTextColor: Appearance.colors.colSubtext
+                            selectionColor: Appearance.colors.colPrimary
+                            selectedTextColor: Appearance.m3colors.m3onPrimary
+                            padding: 12
+                            background: Rectangle {
+                                radius: Appearance.rounding.small
+                                color: Appearance.colors.colLayer2
+                                border.width: descriptionField.activeFocus ? 1 : 0
+                                border.color: Appearance.colors.colPrimary
+                            }
                         }
                         RowLayout {
                             Layout.fillWidth: true
@@ -922,131 +1438,340 @@ PanelWindow {
                 downAction: () => root.saveEditor()
             }
             ScrollView {
+                id: settingsScroll
                 visible: root.page === "settings"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
                 contentWidth: availableWidth
                 ColumnLayout {
-                width: parent.width
+                width: Math.min(settingsScroll.availableWidth, 760)
+                x: (settingsScroll.availableWidth - width) / 2
                 spacing: 14
                 Label {
                     text: Translation.tr("Set up calendar")
                     font.pixelSize: 22
                 }
                 Section {
-                    Label {
-                        text: Translation.tr("Recurring activities")
-                    }
-                    Action {
+                    RowLayout {
                         Layout.fillWidth: true
-                        label: Agenda.data.presetEnabled ? Translation.tr("Shown") : Translation.tr("Hidden")
-                        symbol: Agenda.data.presetEnabled ? "check_circle" : "visibility_off"
-                        selected: Agenda.data.presetEnabled
-                        enabled: Agenda.ready
-                        downAction: () => Agenda.togglePreset()
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Meetings and one-time events are always shown")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: 12
-                        wrapMode: Text.Wrap
-                    }
-                }
-                Section {
-                    Label {
-                        text: Translation.tr("Example week")
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Exercise, work, and personal activities. Add them as a starting point and customize them.")
-                        color: Appearance.colors.colSubtext
-                        wrapMode: Text.Wrap
-                    }
-                    Action {
-                        Layout.fillWidth: true
-                        label: Translation.tr("Add example")
-                        symbol: "calendar_add_on"
-                        enabled: Agenda.ready
-                        downAction: () => {
-                            if (Agenda.loadExample())
-                                root.page = "overview";
+                        spacing: 12
+                        Rectangle {
+                            implicitWidth: 40
+                            implicitHeight: 40
+                            radius: 12
+                            color: Qt.alpha(Appearance.colors.colPrimary, 0.12)
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: Agenda.workBusy ? "sync" : Agenda.workError ? "error_outline" : "calendar_month"
+                                iconSize: 22
+                                color: Agenda.workError ? Appearance.m3colors.m3error : Appearance.colors.colPrimary
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Label {
+                                Layout.fillWidth: true
+                                text: Translation.tr("Work calendar · Outlook")
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                text: (Agenda.workBusy ? Translation.tr("Syncing…") : Agenda.workConfigured
+                                      ? (Agenda.workError ? Translation.tr("Connected · refresh failed") : Translation.tr("Connected"))
+                                      : Translation.tr("Not connected"))
+                                      + (Agenda.workConfigured ? " · " + Agenda.workEvents.length + " " + Translation.tr("events") : "")
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
+                                color: Agenda.workError ? Appearance.m3colors.m3error : Agenda.workConfigured
+                                       ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                            }
+                            Label {
+                                visible: Agenda.workConfigured
+                                Layout.fillWidth: true
+                                text: (Agenda.workUpdatedAt ? new Date(Agenda.workUpdatedAt).toLocaleString(root.uiLocale, "d MMM, HH:mm") + " · " : "")
+                                      + Translation.tr("Every 15 min")
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                color: Appearance.colors.colSubtext
+                            }
+                        }
+                        RowLayout {
+                            spacing: 2
+                            IconButton {
+                                visible: Agenda.workConfigured
+                                symbol: "refresh"
+                                hint: Translation.tr("Refresh")
+                                enabled: !Agenda.workBusy
+                                downAction: () => Agenda.workAction("sync")
+                            }
+                            IconButton {
+                                symbol: "open_in_new"
+                                hint: Translation.tr("Open Outlook")
+                                downAction: () => Qt.openUrlExternally("https://mail.prosebya.ru/owa/#path=/calendar")
+                            }
+                            IconButton {
+                                id: workMenuButton
+                                visible: Agenda.workConfigured
+                                symbol: "more_vert"
+                                hint: Translation.tr("Calendar actions")
+                                enabled: !Agenda.workBusy
+                                downAction: () => workMenu.open()
+                                Popup {
+                                    id: workMenu
+                                    focus: true
+                                    parent: workMenuButton
+                                    x: parent.width - width
+                                    y: parent.height + 6
+                                    width: 220
+                                    padding: 8
+                                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                    background: Rectangle {
+                                        radius: Appearance.rounding.normal
+                                        color: Appearance.m3colors.m3surfaceContainerHigh
+                                        border.width: 1
+                                        border.color: Appearance.colors.colOutlineVariant
+                                    }
+                                    contentItem: ColumnLayout {
+                                        spacing: 4
+                                        Action {
+                                            Layout.fillWidth: true
+                                            label: Translation.tr("Replace link")
+                                            symbol: "edit_link"
+                                            downAction: () => {
+                                                workMenu.close();
+                                                root.replacingWorkLink = true;
+                                                Qt.callLater(() => workUrlField.forceActiveFocus());
+                                            }
+                                        }
+                                        Action {
+                                            Layout.fillWidth: true
+                                            label: Translation.tr("Disconnect")
+                                            symbol: "link_off"
+                                            downAction: () => {
+                                                workMenu.close();
+                                                root.replacingWorkLink = false;
+                                                Agenda.workAction("disconnect");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-                Section {
-                    Label {
-                        text: Translation.tr("JSON preset")
-                    }
                     Label {
                         Layout.fillWidth: true
-                        text: Translation.tr("Add activities from a file. Loading the same preset again updates its activities.")
-                        color: Appearance.colors.colSubtext
-                        font.pixelSize: 12
+                        visible: !Agenda.workConfigured
+                        text: Translation.tr("Paste the Outlook ICS link. Choose Full details to include descriptions and meeting links.")
                         wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: Appearance.colors.colSubtext
                     }
-                    Action {
+                    RowLayout {
+                        visible: !Agenda.workConfigured || root.replacingWorkLink
                         Layout.fillWidth: true
-                        label: Translation.tr("Load preset")
-                        symbol: "upload_file"
-                        enabled: Agenda.ready
-                        downAction: () => {
-                            root.presetStatus = "";
-                            root.presetSucceeded = false;
-                            GlobalFocusGrab.removeDismissable(root);
-                            presetDialog.open();
+                        spacing: 8
+                        Field {
+                            id: workUrlField
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 80
+                            placeholderText: "https://…/calendar.ics"
+                            echoMode: TextInput.PasswordEchoOnEdit
+                        }
+                        Action {
+                            label: Agenda.workConfigured ? Translation.tr("Save") : Translation.tr("Connect")
+                            primary: true
+                            enabled: !Agenda.workBusy && workUrlField.text.trim().length > 0
+                            downAction: () => {
+                                Agenda.workAction("connect", workUrlField.text.trim());
+                                workUrlField.text = "";
+                                root.replacingWorkLink = false;
+                            }
+                        }
+                        IconButton {
+                            visible: Agenda.workConfigured
+                            symbol: "close"
+                            hint: Translation.tr("Cancel")
+                            downAction: () => {
+                                root.replacingWorkLink = false;
+                                workUrlField.text = "";
+                            }
                         }
                     }
                     Label {
-                        visible: root.presetStatus !== ""
                         Layout.fillWidth: true
-                        text: root.presetStatus
-                        color: root.presetSucceeded ? Appearance.colors.colPrimary : Appearance.m3colors.m3error
-                        font.pixelSize: 12
+                        visible: Agenda.workError.length > 0
+                        text: Agenda.workError
                         wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: Appearance.m3colors.m3error
                     }
                 }
-                Action {
-                    Layout.fillWidth: true
-                    label: Translation.tr("Restore selected day")
-                    symbol: "restore"
-                    enabled: Agenda.ready
-                    downAction: () => Agenda.restore(root.selectedDate)
+
+                Label {
+                    text: Translation.tr("Display")
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
+                }
+                Section {
+                    SettingsRow {
+                        title: Translation.tr("Recurring activities")
+                        description: Translation.tr("Meetings and one-time events are always shown")
+                        symbol: "event_repeat"
+                        StyledSwitch {
+                            checked: Agenda.data.presetEnabled
+                            enabled: Agenda.ready
+                            onClicked: Agenda.togglePreset()
+                        }
+                    }
+                    SettingsDivider {}
+                    SettingsRow {
+                        title: Translation.tr("Window size")
+                        description: Translation.tr("Super + right mouse: resize · Super + left mouse: move. Saved automatically.")
+                        symbol: "aspect_ratio"
+                        Action {
+                            label: Translation.tr("Reset")
+                            implicitHeight: 36
+                            downAction: () => root.resetWindowSize()
+                        }
+                    }
+                    Label {
+                        visible: root.sizeError.length > 0
+                        Layout.fillWidth: true
+                        text: root.sizeError
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: Appearance.m3colors.m3error
+                    }
                 }
                 Label {
-                    visible: root.confirmingClear
-                    Layout.fillWidth: true
-                    text: Translation.tr("Delete all events and recurring activities?")
-                    wrapMode: Text.Wrap
+                    text: Translation.tr("Templates & backup")
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Action {
-                        visible: root.confirmingClear
-                        Layout.fillWidth: true
-                        label: Translation.tr("Cancel")
-                        downAction: () => root.confirmingClear = false
+                Section {
+                    SettingsRow {
+                        title: Translation.tr("Example week")
+                        description: Translation.tr("Start with a ready-made personal routine.")
+                        symbol: "calendar_add_on"
+                        Action {
+                            label: Translation.tr("Add")
+                            implicitHeight: 36
+                            enabled: Agenda.ready
+                            downAction: () => {
+                                if (Agenda.loadExample()) root.page = "overview";
+                            }
+                        }
                     }
-                    Action {
+                    SettingsDivider {}
+                    SettingsRow {
+                        title: Translation.tr("Import preset")
+                        description: Translation.tr("Load activities from JSON. Reimporting updates the same preset.")
+                        symbol: "upload_file"
+                        Action {
+                            label: Translation.tr("Choose file")
+                            implicitHeight: 36
+                            enabled: Agenda.ready
+                            downAction: () => {
+                                root.presetStatus = "";
+                                root.presetSucceeded = false;
+                                presetDialog.open();
+                            }
+                        }
+                    }
+                    Label {
+                        visible: root.presetStatus.length > 0
                         Layout.fillWidth: true
-                        label: root.confirmingClear ? Translation.tr("Clear") : Translation.tr("Clear entire calendar")
-                        symbol: "delete_sweep"
-                        colBackground: Qt.alpha(Appearance.m3colors.m3error, 0.12)
-                        colBackgroundHover: Qt.alpha(Appearance.m3colors.m3error, 0.2)
-                        enabled: Agenda.ready && (Agenda.data.events.length > 0
-                                                  || Agenda.data.routines.length > 0 || Object.keys(
-                                                      Agenda.data.exceptions).length > 0)
-                        downAction: () => {
-                            if (!root.confirmingClear)
-                                root.confirmingClear = true;
-                            else if (Agenda.clearAll()) {
+                        text: root.presetStatus
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: root.presetSucceeded ? Appearance.colors.colPrimary : Appearance.m3colors.m3error
+                    }
+                    SettingsDivider {}
+                    SettingsRow {
+                        title: Translation.tr("Personal backup")
+                        description: Translation.tr("Save events, routines and changes to a JSON file.")
+                        symbol: "download"
+                        Action {
+                            label: Translation.tr("Export")
+                            implicitHeight: 36
+                            enabled: Agenda.ready
+                            downAction: () => {
+                                root.exportStatus = "";
+                                root.exportSucceeded = false;
+                                calendarExportDialog.open();
+                            }
+                        }
+                    }
+                    Label {
+                        visible: root.exportStatus.length > 0
+                        Layout.fillWidth: true
+                        text: root.exportStatus
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: root.exportSucceeded ? Appearance.colors.colPrimary : Appearance.m3colors.m3error
+                    }
+                }
+                Section {
+                    SettingsRow {
+                        title: Translation.tr("Manage personal data")
+                        description: Translation.tr("Restore a day or clear your personal schedule.")
+                        symbol: "tune"
+                        IconButton {
+                            symbol: root.advancedSettingsOpen ? "expand_less" : "expand_more"
+                            hint: Translation.tr("Manage personal data")
+                            downAction: () => {
+                                root.advancedSettingsOpen = !root.advancedSettingsOpen;
                                 root.confirmingClear = false;
-                                root.editingEvent = null;
+                            }
+                        }
+                    }
+                    SettingsDivider { visible: root.advancedSettingsOpen }
+                    SettingsRow {
+                        visible: root.advancedSettingsOpen
+                        title: Translation.tr("Restore selected day")
+                        description: root.selectedDate.toLocaleDateString(root.uiLocale, "ddd, d MMM")
+                        symbol: "restore"
+                        Action {
+                            label: Translation.tr("Restore")
+                            implicitHeight: 36
+                            enabled: Agenda.ready
+                            downAction: () => Agenda.restore(root.selectedDate)
+                        }
+                    }
+                    SettingsDivider { visible: root.advancedSettingsOpen }
+                    SettingsRow {
+                        visible: root.advancedSettingsOpen
+                        title: Translation.tr("Clear personal schedule")
+                        description: root.confirmingClear ? Translation.tr("Delete all events and recurring activities?")
+                                     : Translation.tr("Remove personal events, routines and changes.")
+                        symbol: "delete_sweep"
+                        Action {
+                            visible: root.confirmingClear
+                            label: Translation.tr("Cancel")
+                            implicitHeight: 36
+                            downAction: () => root.confirmingClear = false
+                        }
+                        Action {
+                            label: root.confirmingClear ? Translation.tr("Delete") : Translation.tr("Clear")
+                            implicitHeight: 36
+                            colBackground: Qt.alpha(Appearance.m3colors.m3error, 0.12)
+                            colBackgroundHover: Qt.alpha(Appearance.m3colors.m3error, 0.2)
+                            enabled: Agenda.ready && (Agenda.data.events.length > 0 || Agenda.data.routines.length > 0
+                                                     || Object.keys(Agenda.data.exceptions).length > 0)
+                            downAction: () => {
+                                if (!root.confirmingClear) root.confirmingClear = true;
+                                else if (Agenda.clearAll()) {
+                                    root.confirmingClear = false;
+                                    root.editingEvent = null;
+                                }
                             }
                         }
                     }
                 }
+
                 }
             }
         }
