@@ -200,7 +200,7 @@ class Controller:
                 current = get_value('brightness', dev)
                 actions.append(('brightness', dev, min(current, max(1, round(maximum * c['brightness'] / 100)))))
             else:
-                self.state['errors'].append('Подсветка: brightnessctl или встроенный экран недоступны')
+                self.state['errors'].append('Brightness: brightnessctl or built-in display unavailable')
         if c['refresh']:
             try:
                 found = False
@@ -218,11 +218,11 @@ class Controller:
                     if modes:
                         actions.append(('monitor', m['name'], f"{m['width']}x{m['height']}@{max(modes):.3f}"))
                     elif m['refreshRate'] > c['hz'] + 0.1:
-                        self.state['errors'].append(f"{m['name']}: подходящая частота не поддерживается")
+                        self.state['errors'].append(f"{m['name']}: no suitable refresh rate supported")
                 if not found:
-                    self.state['errors'].append('Встроенный монитор не найден')
+                    self.state['errors'].append('Built-in display not found')
             except Exception as e:
-                self.state['errors'].append(f'Частота: {e}')
+                self.state['errors'].append(f'Refresh rate: {e}')
         for key, option in [('animations', 'animations:enabled'), ('blur', 'decoration:blur:enabled')]:
             if c[key]:
                 actions.append(('option', option, False))
@@ -234,7 +234,7 @@ class Controller:
         # An empty/failed plan must not pretend to have enabled power saving.
         self.state['active'] = bool(self.state['changes'])
         if not self.state['changes'] and not self.state['errors']:
-            self.state['errors'].append('Параметры уже экономные либо действия не выбраны')
+            self.state['errors'].append('Settings already save power or no actions selected')
         self.persist()
 
     def disable(self):

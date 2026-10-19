@@ -116,7 +116,7 @@ class PowerSavingTest(unittest.TestCase):
         c.config.update(refresh=True, hz=30)
         c.enable()
         self.assertEqual(self.values['monitor', 'eDP-1'], '1920x1080@144.000')
-        self.assertTrue(any('частота' in error for error in c.state['errors']))
+        self.assertTrue(any('refresh rate' in error for error in c.state['errors']))
 
     def test_lua_commands_preserve_panel_geometry(self):
         panel = dict(name='eDP-1', x=100, y=200, scale=1.5, transform=1,

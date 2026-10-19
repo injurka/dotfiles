@@ -26,6 +26,8 @@ RippleButton {
         StyledText {
             id: labelWidget
             Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            wrapMode: Text.WordWrap
             text: root.text
             font: root.font
             color: Appearance.colors.colOnSecondaryContainer
@@ -35,6 +37,8 @@ RippleButton {
             id: switchWidget
             down: root.down
             Layout.fillWidth: false
+            Layout.minimumWidth: implicitWidth
+            Layout.maximumWidth: implicitWidth
             checked: root.checked
             onClicked: root.clicked()
         }

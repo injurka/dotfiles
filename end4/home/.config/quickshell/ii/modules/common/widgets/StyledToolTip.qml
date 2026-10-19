@@ -9,7 +9,8 @@ ToolTip {
     property bool extraVisibleCondition: true
     property bool alternativeVisibleCondition: false
 
-    readonly property bool internalVisibleCondition: (extraVisibleCondition && (parent.hovered === undefined || parent?.hovered)) || alternativeVisibleCondition
+    readonly property bool internalVisibleCondition: root.text.trim().length > 0
+        && ((extraVisibleCondition && (parent.hovered === undefined || parent?.hovered)) || alternativeVisibleCondition)
     verticalPadding: 5
     horizontalPadding: 10
     background: null

@@ -41,13 +41,13 @@ Singleton {
                 root.request("configure", patch);
             });
             if (exitCode !== 0) root.state = Object.assign({}, root.state, {
-                errors: [workerError.text || "Не удалось запустить управление энергосбережением"]
+                errors: [workerError.text || "Failed to start power saving controller"]
             });
         }
         stdout: StdioCollector {
             onStreamFinished: {
                 try { root.state = JSON.parse(text); }
-                catch (e) { root.state = Object.assign({}, root.state, { errors: ["Ошибка чтения режима энергосбережения"] }); }
+                catch (e) { root.state = Object.assign({}, root.state, { errors: ["Failed to read power saving state"] }); }
             }
         }
     }

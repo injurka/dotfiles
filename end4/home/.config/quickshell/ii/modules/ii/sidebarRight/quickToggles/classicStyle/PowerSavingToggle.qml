@@ -9,7 +9,7 @@ QuickToggleButton {
     buttonIcon: "energy_savings_leaf"
     onClicked: PowerSaving.toggle()
     StyledToolTip {
-        text: (PowerSaving.active ? "Энергосбережение включено" : "Энергосбережение выключено")
-            + "\nПКМ — настроить" + (PowerSaving.errorText ? "\n" + PowerSaving.errorText : "")
+        text: (PowerSaving.active ? "Power saving on" : "Power saving off")
+            + "\nRight-click to configure" + (PowerSaving.errorText ? "\n" + PowerSaving.errorText : "")
     }
 }
