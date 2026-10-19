@@ -297,7 +297,7 @@ Item { // Bar content region
                     }
                     MaterialSymbol {
                         Layout.topMargin: indicatorsColumnLayout.realSpacing
-                        visible: BluetoothStatus.available
+                        visible: BluetoothStatus.available && BluetoothStatus.enabled
                         text: BluetoothStatus.connected ? "bluetooth_connected" : BluetoothStatus.enabled ? "bluetooth" : "bluetooth_disabled"
                         iconSize: Appearance.font.pixelSize.larger
                         color: rightSidebarButton.colText
