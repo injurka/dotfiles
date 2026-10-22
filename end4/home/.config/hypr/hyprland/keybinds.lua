@@ -34,8 +34,11 @@ hl.bind("SUPER + M", hl.dsp.global("quickshell:mediaControlsToggle"), { descript
 hl.bind("SUPER + G", hl.dsp.global("quickshell:overlayToggle"), { description = "Shell: Toggle widget overlay" })
 hl.bind("CTRL + ALT + Delete", hl.dsp.global("quickshell:sessionToggle"), { description = "Shell: Toggle session menu" })
 -- Open instead of toggle: pressing the power button again must not select an action.
-hl.bind("XF86PowerOff", hl.dsp.exec_cmd(qsIpcCall .. " session open"),
-    { ignore_mods = true, description = "Session: Open menu with power button" })
+hl.bind("XF86PowerOff", hl.dsp.exec_cmd(qsIpcCall .. " session open"), {
+    ignore_mods = true,
+    device = { inclusive = true, list = { "power-button" } },
+    description = "Session: Open menu with power button",
+})
 hl.bind("SUPER + J", hl.dsp.global("quickshell:barToggle"), { description = "Shell: Toggle bar" })
 hl.bind("CTRL + ALT + Delete", hl.dsp.exec_cmd(qsIsAlive .. " || pkill wlogout || wlogout -p layer-shell"))
 hl.bind("SHIFT + SUPER + ALT + Slash", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/$qsConfig/welcome.qml"))
@@ -56,7 +59,8 @@ hl.bind("CTRL + SUPER + ALT + T", hl.dsp.global("quickshell:wallpaperSelectorRan
 hl.bind("CTRL + SUPER + SHIFT + D", hl.dsp.global("quickshell:toggleLightDark"),
     { description = "Shell: Toggle light/dark mode" })
 hl.bind("CTRL + SUPER + T", hl.dsp.exec_cmd(qsIsAlive .. " || " .. qsScripts .. "/colors/switchwall.sh"))
-hl.bind("CTRL + SUPER + R", hl.dsp.exec_cmd("killall ydotool qs quickshell; qs -c $qsConfig &"),
+hl.bind("CTRL + SUPER + R", hl.dsp.exec_cmd(
+        "killall ydotool qs quickshell; sleep 1; $HOME/.config/hypr/custom/scripts/start-end4-shell.sh"),
     { description = "Shell: Restart widgets" })
 hl.bind("CTRL + SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), { description = "Shell: Cycle panel family" })
 
