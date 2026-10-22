@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import qs.services
 
 Singleton {
     id: root
@@ -25,8 +26,76 @@ Singleton {
     property string pendingWorkUrl: ""
     readonly property bool workBusy: workProcess.running
 
+    property bool reminderSettingsReady: false
+    property bool remindersEnabled: true
+    property bool reminderSoundEnabled: false
+    property var sentReminderIds: []
+    property string reminderError: ""
+    readonly property string reminderSettingsPath: Directories.state + "/user/calendar-reminders.json"
+
     function day(value) {
         return Schedule.mergedDay(data, value, workEvents, calendarScope);
+    }
+    function saveReminderState() {
+        if (!reminderSettingsReady) return false;
+        reminderStorage.setText(JSON.stringify({
+            version: 1,
+            enabled: remindersEnabled,
+            sound: reminderSoundEnabled,
+            sent: sentReminderIds
+        }, null, 2));
+        return true;
+    }
+    function setRemindersEnabled(value) {
+        remindersEnabled = Boolean(value);
+        saveReminderState();
+        if (remindersEnabled) checkUpcomingActivities();
+    }
+    function setReminderSoundEnabled(value) {
+        reminderSoundEnabled = Boolean(value);
+        saveReminderState();
+    }
+    function reminderId(event, startAt) {
+        const value = `${event.source}:${event.id}:${startAt.getTime()}`;
+        let hash = 2166136261;
+        for (let index = 0; index < value.length; index++) {
+            hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+        }
+        return `${startAt.toISOString().slice(0, 10)}:${(hash >>> 0).toString(16)}`;
+    }
+    function checkUpcomingActivities() {
+        if (!reminderSettingsReady || !ready || !remindersEnabled) return;
+
+        const current = new Date(now);
+        const today = new Date(current.getFullYear(), current.getMonth(), current.getDate(), 12);
+        const due = [];
+        const earliestLead = 4.5 * 60 * 1000;
+        const latestLead = 5.5 * 60 * 1000;
+        Schedule.mergedDay(data, today, workEvents, "all").forEach(event => {
+            if (event.allDay || event.continued) return;
+            const startAt = event.startAt ? new Date(event.startAt)
+                : new Date(current.getFullYear(), current.getMonth(), current.getDate(),
+                    Math.floor(event.originalStart / 60), event.originalStart % 60);
+            if (!Number.isFinite(startAt.getTime())) return;
+
+            const lead = startAt.getTime() - current.getTime();
+            if (lead < earliestLead || lead > latestLead) return;
+
+            const reminderId = root.reminderId(event, startAt);
+            if (sentReminderIds.includes(reminderId)) return;
+            due.push({event, reminderId});
+        });
+        if (!due.length) return;
+
+        sentReminderIds = [...sentReminderIds, ...due.map(item => item.reminderId)].slice(-1000);
+        saveReminderState();
+        due.forEach(item => sendActivityReminder(item.event));
+    }
+    function sendActivityReminder(event) {
+        const summary = Translation.tr("Plot twist in five minutes");
+        const body = Translation.tr("%1 starts soon. The calendar is already in starting position.").arg(event.title);
+        Quickshell.execDetached(["notify-send", "--app-name=Calendar", "--icon=calendar", "--expire-time=10000", summary, body]);
+        if (reminderSoundEnabled) Audio.playSystemSound("complete");
     }
     function workAction(action, url = "") {
         if (workProcess.running) return;
@@ -246,6 +315,11 @@ Singleton {
         running: true
         onTriggered: root.now = new Date()
     }
+    onNowChanged: checkUpcomingActivities()
+    onReadyChanged: checkUpcomingActivities()
+    onWorkEventsChanged: checkUpcomingActivities()
+    onRemindersEnabledChanged: if (remindersEnabled) checkUpcomingActivities()
+    onReminderSettingsReadyChanged: if (reminderSettingsReady) checkUpcomingActivities()
 
     FileView {
         id: storage
@@ -280,5 +354,36 @@ Singleton {
             root.error = Translation.tr("Could not save schedule: %1").arg(error);
             root.ready = false;
         }
+    }
+
+    FileView {
+        id: reminderStorage
+        path: root.reminderSettingsPath
+        onLoaded: {
+            try {
+                const saved = JSON.parse(text());
+                if (saved.version !== 1 || typeof saved.enabled !== "boolean"
+                    || typeof saved.sound !== "boolean" || !Array.isArray(saved.sent)
+                    || saved.sent.some(id => typeof id !== "string"))
+                    throw new Error("Invalid reminder settings format");
+                root.remindersEnabled = saved.enabled;
+                root.reminderSoundEnabled = saved.sound;
+                root.sentReminderIds = saved.sent.slice(-1000);
+                root.reminderError = "";
+                root.reminderSettingsReady = true;
+            } catch (error) {
+                root.reminderError = Translation.tr("Could not read reminder settings");
+            }
+        }
+        onLoadFailed: error => {
+            if (error === FileViewError.FileNotFound) {
+                root.reminderError = "";
+                root.reminderSettingsReady = true;
+            } else {
+                root.reminderError = Translation.tr("Could not read reminder settings");
+            }
+        }
+        onSaveFailed: root.reminderError = Translation.tr("Could not save reminder settings")
+        onSaved: root.reminderError = ""
     }
 }

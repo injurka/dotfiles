@@ -910,5 +910,14 @@
   "Additional buttons": "Дополнительные кнопки",
   "Spaced repetition": "Интервальное повторение",
   "AI assistant": "ИИ-помощник",
-  "Music player": "Музыкальный плеер"
+  "Music player": "Музыкальный плеер",
+  "Reminders": "Напоминания",
+  "Activity reminders": "Напоминания об активностях",
+  "Send a playful notification 5 minutes before personal and work activities.": "Присылать шуточное уведомление за 5 минут до личных и рабочих активностей.",
+  "Reminder sound": "Звук напоминания",
+  "Play a sound with calendar notifications.": "Воспроизводить звук вместе с уведомлением календаря.",
+  "Plot twist in five minutes": "Через пять минут смена сюжета",
+  "%1 starts soon. The calendar is already in starting position.": "Через 5 минут — «%1». Календарь уже занял стартовую позицию.",
+  "Could not read reminder settings": "Не удалось прочитать настройки напоминаний",
+  "Could not save reminder settings": "Не удалось сохранить настройки напоминаний"
 }

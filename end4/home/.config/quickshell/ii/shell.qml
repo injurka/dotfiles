@@ -30,6 +30,7 @@ ShellRoot {
         Cliphist.refresh()
         Wallpapers.load()
         Updates.load()
+        Agenda.checkUpcomingActivities()
     }
 
 
@@ -74,4 +75,3 @@ ShellRoot {
         onPressed: root.cyclePanelFamily()
     }
 }
-

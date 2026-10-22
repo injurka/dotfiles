@@ -1611,6 +1611,43 @@ FloatingWindow {
                 }
 
                 Label {
+                    text: Translation.tr("Reminders")
+                    font.pixelSize: 12
+                    color: Appearance.colors.colSubtext
+                }
+                Section {
+                    SettingsRow {
+                        title: Translation.tr("Activity reminders")
+                        description: Translation.tr("Send a playful notification 5 minutes before personal and work activities.")
+                        symbol: "notifications_active"
+                        StyledSwitch {
+                            checked: Agenda.remindersEnabled
+                            enabled: Agenda.reminderSettingsReady
+                            onClicked: Agenda.setRemindersEnabled(checked)
+                        }
+                    }
+                    SettingsDivider {}
+                    SettingsRow {
+                        title: Translation.tr("Reminder sound")
+                        description: Translation.tr("Play a sound with calendar notifications.")
+                        symbol: "volume_up"
+                        StyledSwitch {
+                            checked: Agenda.reminderSoundEnabled
+                            enabled: Agenda.reminderSettingsReady && Agenda.remindersEnabled
+                            onClicked: Agenda.setReminderSoundEnabled(checked)
+                        }
+                    }
+                    Label {
+                        visible: Agenda.reminderError.length > 0
+                        Layout.fillWidth: true
+                        text: Agenda.reminderError
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 12
+                        color: Appearance.m3colors.m3error
+                    }
+                }
+
+                Label {
                     text: Translation.tr("Display")
                     font.pixelSize: 12
                     color: Appearance.colors.colSubtext

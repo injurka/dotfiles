@@ -711,5 +711,14 @@
   "Additional buttons": "Additional buttons",
   "Spaced repetition": "Spaced repetition",
   "AI assistant": "AI assistant",
-  "Music player": "Music player"
+  "Music player": "Music player",
+  "Reminders": "Reminders",
+  "Activity reminders": "Activity reminders",
+  "Send a playful notification 5 minutes before personal and work activities.": "Send a playful notification 5 minutes before personal and work activities.",
+  "Reminder sound": "Reminder sound",
+  "Play a sound with calendar notifications.": "Play a sound with calendar notifications.",
+  "Plot twist in five minutes": "Plot twist in five minutes",
+  "%1 starts soon. The calendar is already in starting position.": "%1 starts soon. The calendar is already in starting position.",
+  "Could not read reminder settings": "Could not read reminder settings",
+  "Could not save reminder settings": "Could not save reminder settings"
 }
