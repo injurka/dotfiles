@@ -906,5 +906,9 @@
   "Notes, a plan or a meeting link": "Заметки, план или ссылка на встречу",
   "No description yet. Add one using Edit activity.": "Описания пока нет. Добавьте его через «Редактировать активность».",
   "Description must be text": "Описание должно быть текстом",
-  "%1 overlapping activities": "Пересекающихся активностей: %1"
+  "%1 overlapping activities": "Пересекающихся активностей: %1",
+  "Additional buttons": "Дополнительные кнопки",
+  "Spaced repetition": "Интервальное повторение",
+  "AI assistant": "ИИ-помощник",
+  "Music player": "Музыкальный плеер"
 }

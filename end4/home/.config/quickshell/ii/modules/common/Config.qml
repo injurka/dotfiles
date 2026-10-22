@@ -261,6 +261,11 @@ Singleton {
                     property bool showPerformanceProfileToggle: false
                     property bool showScreenRecord: false
                 }
+                property JsonObject customButtons: JsonObject {
+                    property bool showSrs: false
+                    property bool showAi: false
+                    property bool showMusic: true
+                }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true
                     property int shown: 10

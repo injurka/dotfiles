@@ -80,6 +80,7 @@ Item { // Bar content region
 
             // InsightBook SRS
             QuickshellBarButton {
+                visible: Config.options.bar.customButtons.showSrs
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillHeight: false
             }
@@ -107,6 +108,7 @@ Item { // Bar content region
             HorizontalBarSeparator {}
 
             VerticalMedia {
+                visible: Config.options.bar.customButtons.showMusic
                 Layout.fillWidth: true
                 Layout.fillHeight: false
             }

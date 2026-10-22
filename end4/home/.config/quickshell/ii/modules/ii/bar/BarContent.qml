@@ -120,7 +120,7 @@ Item { // Bar content region
             }
 
             Media {
-                visible: root.useShortenedForm < 2
+                visible: root.useShortenedForm < 2 && Config.options.bar.customButtons.showMusic
                 Layout.fillWidth: true
             }
         }
@@ -325,6 +325,7 @@ Item { // Bar content region
 
             // InsightBook SRS
             QuickshellBarButton {
+                visible: Config.options.bar.customButtons.showSrs
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: false
             }

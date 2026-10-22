@@ -347,4 +347,34 @@ ContentPage {
             }
         }
     }
+
+    ContentSection {
+        icon: "extension"
+        title: Translation.tr("Additional buttons")
+
+        ConfigRow {
+            uniform: true
+            ConfigSwitch {
+                buttonIcon: "style"
+                text: Translation.tr("Spaced repetition")
+                checked: Config.options.bar.customButtons.showSrs
+                onCheckedChanged: Config.options.bar.customButtons.showSrs = checked;
+            }
+            ConfigSwitch {
+                buttonIcon: "smart_toy"
+                text: Translation.tr("AI assistant")
+                checked: Config.options.bar.customButtons.showAi
+                onCheckedChanged: Config.options.bar.customButtons.showAi = checked;
+            }
+        }
+        ConfigRow {
+            uniform: true
+            ConfigSwitch {
+                buttonIcon: "music_note"
+                text: Translation.tr("Music player")
+                checked: Config.options.bar.customButtons.showMusic
+                onCheckedChanged: Config.options.bar.customButtons.showMusic = checked;
+            }
+        }
+    }
 }

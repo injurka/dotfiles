@@ -11,7 +11,7 @@ RippleButton {
 
     property bool aiChatEnabled: Config.options.policies.ai !== 0
     property bool translatorEnabled: Config.options.sidebar.translator.enable
-    visible: aiChatEnabled || translatorEnabled
+    visible: Config.options.bar.customButtons.showAi && (aiChatEnabled || translatorEnabled)
 
     property real buttonPadding: 5
     implicitWidth: distroIcon.width + buttonPadding * 2
