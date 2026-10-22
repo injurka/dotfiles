@@ -318,6 +318,11 @@ Item { // Bar content region
                 }
             }
 
+            FavoritesButton {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.fillWidth: false
+            }
+
             // InsightBook SRS
             QuickshellBarButton {
                 Layout.alignment: Qt.AlignVCenter

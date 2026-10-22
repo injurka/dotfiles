@@ -141,6 +141,7 @@ hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" }, ignore_alpha 
 hl.layer_rule({ match = { namespace = "quickshell:sidebarLeft" }, ignore_alpha = 1})
 hl.layer_rule({ match = { namespace = "quickshell:cheatsheet" }, ignore_alpha = 1})
 hl.layer_rule({ match = { namespace = "quickshell:srs" }, ignore_alpha = 1})
+hl.layer_rule({ match = { namespace = "quickshell:favorites" }, ignore_alpha = 1})
 hl.layer_rule({ match = { namespace = "quickshell:agenda" }, ignore_alpha = 1})
 hl.layer_rule({ match = { namespace = "quickshell:background" }, blur = false})
 hl.layer_rule({ match = { namespace = "quickshell:bar" }, animation = "slide"})

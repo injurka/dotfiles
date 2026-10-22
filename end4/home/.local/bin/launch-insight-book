@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Insight Book uses the same host WebKit compatibility path as other Tauri apps.
+set -euo pipefail
+image=${1:?Usage: launch-insight-book APPIMAGE [ARGS...]}
+shift
+exec "$(dirname -- "${BASH_SOURCE[0]}")/launch-tauri-appimage" "$image" app "$@"

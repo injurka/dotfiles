@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Run the packaged application with the host WebKit/GTK stack. The bundled
+# WebKit in some AppImages fails to create an EGL display on this host.
+set -euo pipefail
+
+image=$(realpath -- "${1:?Usage: launch-tauri-appimage APPIMAGE BINARY [ARGS...]}")
+shift
+entry=${1:?Missing application binary name}
+shift
+[[ "$entry" =~ ^[[:alnum:]_.-]+$ ]] || { echo "Invalid binary name" >&2; exit 2; }
+key=$(sha256sum -- "$image")
+key=${key%% *}
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/tauri-appimage-host/$key/$entry"
+mkdir -p -- "$cache"
+
+# Extract only the application binary; its frontend is embedded. Keep each
+# AppImage version separate and serialize extraction across concurrent launches.
+exec 9>"$cache/extract.lock"
+flock 9
+binary="$cache/squashfs-root/usr/bin/$entry"
+if [[ ! -x "$binary" ]]; then
+    staging=$(mktemp -d "$cache/extract.XXXXXX")
+    trap 'rm -rf -- "$staging"' EXIT
+    (cd -- "$staging" && "$image" --appimage-extract "usr/bin/$entry" >/dev/null)
+    test -x "$staging/squashfs-root/usr/bin/$entry"
+    mv -- "$staging/squashfs-root" "$cache/squashfs-root"
+    rm -d -- "$staging"
+    trap - EXIT
+fi
+flock -u 9
+exec 9>&-
+
+# Cache a tiny, version-gated WebKit workaround independently of AppImages.
+# No GTK/WebKit link dependency: the shim resolves symbols in the loaded stack.
+source_file="${XDG_DATA_HOME:-$HOME/.local/share}/end4/webkit-no-backdrop.c"
+preload=${LD_PRELOAD:-}
+if [[ -f "$source_file" ]]; then
+    shim_key=$(sha256sum -- "$source_file")
+    shim_key=${shim_key%% *}
+    shim_cache="${XDG_CACHE_HOME:-$HOME/.cache}/tauri-appimage-host/webkit-compat/$shim_key"
+    mkdir -p -- "$shim_cache"
+    exec 9>"$shim_cache/build.lock"
+    flock 9
+    shim="$shim_cache/webkit-no-backdrop.so"
+    if [[ ! -f "$shim" ]]; then
+        staging=$(mktemp "$shim_cache/build.XXXXXX")
+        trap 'rm -f -- "$staging"' EXIT
+        cc -Wall -Wextra -Werror -shared -fPIC "$source_file" -o "$staging" -ldl
+        mv -- "$staging" "$shim"
+        trap - EXIT
+    fi
+    flock -u 9
+    exec 9>&-
+    preload="$shim${preload:+:$preload}"
+fi
+
+# Keep accelerated compositing: disabling the DMA-BUF renderer reduces the
+# measured animation rate from 60 FPS to about 10 FPS on this host.
+exec env -u WEBKIT_DISABLE_DMABUF_RENDERER -u WEBKIT_DISABLE_COMPOSITING_MODE \
+    LD_PRELOAD="$preload" LD_LIBRARY_PATH=/usr/lib GDK_BACKEND=wayland "$binary" "$@"

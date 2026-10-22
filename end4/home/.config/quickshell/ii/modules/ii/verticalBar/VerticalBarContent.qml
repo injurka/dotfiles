@@ -59,10 +59,6 @@ Item { // Bar content region
         onScrollDown: Brightness.decreaseBrightness()
         onScrollUp: Brightness.increaseBrightness()
         onMovedAway: GlobalStates.osdBrightnessOpen = false
-        onPressed: event => {
-            if (event.button === Qt.LeftButton)
-                GlobalStates.sidebarLeftOpen = !GlobalStates.sidebarLeftOpen;
-        }
 
         ColumnLayout { // Content
             id: topSectionColumnLayout
@@ -70,9 +66,16 @@ Item { // Bar content region
             spacing: 10
 
             Bar.LeftSidebarButton { // Left sidebar button
+                id: topSidebarButton
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: (Appearance.sizes.baseVerticalBarWidth - implicitWidth) / 2 + Appearance.sizes.hyprlandGapsOut
                 colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+            }
+
+            Bar.FavoritesButton {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: topSidebarButton.visible ? 0 : (Appearance.sizes.baseVerticalBarWidth - implicitHeight) / 2 + Appearance.sizes.hyprlandGapsOut
+                Layout.fillHeight: false
             }
 
             // InsightBook SRS
