@@ -16,6 +16,30 @@ import Quickshell.Services.Notifications
  */
 Singleton {
 	id: root
+    function resolveIconName(iconName) {
+        if (!iconName || iconName.length === 0) return "";
+        if (iconName.startsWith("/") || iconName.startsWith("file://")) return iconName;
+        return (Quickshell.iconPath(iconName, true).length > 0 && !iconName.includes("image-missing")) ? iconName : "";
+    }
+
+    function extractIconFromImage(imageUrl) {
+        if (!imageUrl || !imageUrl.startsWith("image://icon/")) return "";
+        return imageUrl.slice("image://icon/".length).split("?")[0];
+    }
+
+    function normalizeAppIcon(rawAppIcon, rawImage) {
+        const resolvedApp = resolveIconName(String(rawAppIcon ?? ""));
+        if (resolvedApp !== "") return resolvedApp;
+        return resolveIconName(extractIconFromImage(String(rawImage ?? "")));
+    }
+
+    function normalizeImage(rawImage, hasLiveNotification = true) {
+        const imageStr = String(rawImage ?? "");
+        if (!imageStr || imageStr.startsWith("image://icon/")) return "";
+        if (!hasLiveNotification && imageStr.startsWith("image://qsimage/")) return "";
+        return imageStr;
+    }
+
     component Notif: QtObject {
         id: wrapper
         required property int notificationId // Could just be `id` but it conflicts with the default prop in QtObject
@@ -26,10 +50,10 @@ Singleton {
         })) ?? []
         property bool popup: false
         property bool isTransient: notification?.hints.transient ?? false
-        property string appIcon: notification?.appIcon ?? ""
+        property string appIcon: root.normalizeAppIcon(notification?.appIcon, notification?.image)
         property string appName: notification?.appName ?? ""
         property string body: notification?.body ?? ""
-        property string image: notification?.image ?? ""
+        property string image: root.normalizeImage(notification?.image, notification !== null)
         property string summary: notification?.summary ?? ""
         property double time
         property string urgency: notification?.urgency.toString() ?? "normal"
@@ -127,7 +151,10 @@ Singleton {
         const hasPending = root.pendingHistory.length > 0;
         const shouldClear = root.historyClearRequested;
         const validEntries = shouldClear ? [] : entries.filter((entry) =>
-            entry && typeof entry === "object" && Number.isFinite(entry.time));
+            entry && typeof entry === "object" && Number.isFinite(entry.time)).map((entry) => Object.assign({}, entry, {
+                appIcon: root.normalizeAppIcon(entry.appIcon, entry.image),
+                image: root.normalizeImage(entry.image, false)
+            }));
         root.history = [...root.pendingHistory.slice().reverse(), ...validEntries]
             .sort((a, b) => b.time - a.time)
             .slice(0, root.historyLimit);
@@ -319,10 +346,10 @@ Singleton {
                 return notifComponent.createObject(root, {
                     "notificationId": notif.notificationId,
                     "actions": [], // Notification actions are meaningless if they're not tracked by the server or the sender is dead
-                    "appIcon": notif.appIcon,
+                    "appIcon": root.normalizeAppIcon(notif.appIcon, notif.image),
                     "appName": notif.appName,
                     "body": notif.body,
-                    "image": notif.image,
+                    "image": root.normalizeImage(notif.image, false),
                     "summary": notif.summary,
                     "time": notif.time,
                     "urgency": notif.urgency,

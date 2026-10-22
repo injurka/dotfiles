@@ -21,6 +21,23 @@ MaterialShape { // App icon
     property real smallAppIconSize: implicitSize * smallAppIconScale
 
     implicitSize: 38 * scale
+    readonly property string effectiveAppIcon: {
+        const rawIcon = String(root.appIcon || (String(root.image || "").startsWith("image://icon/") ? String(root.image).slice("image://icon/".length).split("?")[0] : ""));
+        if (!rawIcon) return "";
+        if (rawIcon.startsWith("/") || rawIcon.startsWith("file://")) return rawIcon;
+        return (Quickshell.iconPath(rawIcon, true).length > 0 && !rawIcon.includes("image-missing")) ? rawIcon : "";
+    }
+    readonly property string effectiveAppIconSource: {
+        if (!root.effectiveAppIcon) return "";
+        if (root.effectiveAppIcon.startsWith("/")) return "file://" + root.effectiveAppIcon;
+        if (root.effectiveAppIcon.startsWith("file://")) return root.effectiveAppIcon;
+        return Quickshell.iconPath(root.effectiveAppIcon, "image-missing");
+    }
+    readonly property string effectiveImage: {
+        const rawImage = String(root.image || "");
+        if (!rawImage || rawImage.startsWith("image://icon/")) return "";
+        return rawImage;
+    }
     property list<var> urgentShapes: [
         MaterialShape.Shape.VerySunny,
         MaterialShape.Shape.SoftBurst,
@@ -30,7 +47,7 @@ MaterialShape { // App icon
     color: isUrgent ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSecondaryContainer
     Loader {
         id: materialSymbolLoader
-        active: root.appIcon == "" && root.image == ""
+        active: root.effectiveAppIcon == "" && root.effectiveImage == ""
         anchors.fill: parent
         sourceComponent: MaterialSymbol {
             text: {
@@ -48,18 +65,18 @@ MaterialShape { // App icon
     }
     Loader {
         id: appIconLoader
-        active: root.image == "" && root.appIcon != ""
+        active: root.effectiveImage == "" && root.effectiveAppIcon != ""
         anchors.centerIn: parent
         sourceComponent: IconImage {
             id: appIconImage
             implicitSize: root.appIconSize
             asynchronous: true
-            source: Quickshell.iconPath(root.appIcon, "image-missing")
+            source: root.effectiveAppIconSource
         }
     }
     Loader {
         id: notifImageLoader
-        active: root.image != ""
+        active: root.effectiveImage != ""
         anchors.fill: parent
         sourceComponent: Item {
             anchors.fill: parent
@@ -68,7 +85,7 @@ MaterialShape { // App icon
                 anchors.fill: parent
                 readonly property int size: parent.width
 
-                source: root.image
+                source: root.effectiveImage
                 fillMode: Image.PreserveAspectCrop
                 cache: false
                 antialiasing: true
@@ -85,13 +102,13 @@ MaterialShape { // App icon
             }
             Loader {
                 id: notifImageAppIconLoader
-                active: root.appIcon != ""
+                active: root.effectiveAppIcon != ""
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 sourceComponent: IconImage {
                     implicitSize: root.smallAppIconSize
                     asynchronous: true
-                    source: Quickshell.iconPath(root.appIcon, "image-missing")
+                    source: root.effectiveAppIconSource
                 }
             }
         }

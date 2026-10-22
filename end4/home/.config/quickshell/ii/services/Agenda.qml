@@ -94,7 +94,7 @@ Singleton {
     function sendActivityReminder(event) {
         const summary = Translation.tr("Plot twist in five minutes");
         const body = Translation.tr("%1 starts soon. The calendar is already in starting position.").arg(event.title);
-        Quickshell.execDetached(["notify-send", "--app-name=Calendar", "--icon=calendar", "--expire-time=10000", summary, body]);
+        Quickshell.execDetached(["notify-send", "--app-name=Calendar", "--expire-time=10000", summary, body]);
         if (reminderSoundEnabled) Audio.playSystemSound("complete");
     }
     function workAction(action, url = "") {
