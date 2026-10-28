@@ -27,6 +27,7 @@ AbstractQuickPanel {
                 root.openWifiDialog();
             }
         }
+        VpnToggle { onOpenSettings: root.openVpnDialog() }
         BluetoothToggle {
             visible: root.visibleToggleTypes.includes("bluetooth")
             altAction: () => {

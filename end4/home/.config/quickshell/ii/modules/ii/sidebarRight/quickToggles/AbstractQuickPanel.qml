@@ -12,5 +12,6 @@ Rectangle {
     signal openBluetoothDialog()
     signal openNightLightDialog()
     signal openPowerSavingDialog()
+    signal openVpnDialog()
     signal openWifiDialog()
 }

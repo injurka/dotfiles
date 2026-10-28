@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 
@@ -17,6 +18,7 @@ import qs.modules.ii.sidebarRight.pomodoro
 import qs.modules.ii.sidebarRight.powerSaving
 import qs.modules.ii.sidebarRight.nightLight
 import qs.modules.ii.sidebarRight.volumeMixer
+import qs.modules.ii.sidebarRight.vpn
 import qs.modules.ii.sidebarRight.wifiNetworks
 
 Item {
@@ -29,8 +31,13 @@ Item {
     property bool showBluetoothDialog: false
     property bool showNightLightDialog: false
     property bool showPowerSavingDialog: false
+    property bool showVpnDialog: false
     property bool showWifiDialog: false
     property bool showTimerSettingsDialog: false
+    IpcHandler {
+        target: "vpnSettings"
+        function open(): void { GlobalStates.sidebarRightOpen = true; root.showVpnDialog = true; }
+    }
     property bool editMode: false
 
     Connections {
@@ -39,6 +46,7 @@ Item {
             if (!GlobalStates.sidebarRightOpen) {
                 root.showPowerSavingDialog = false;
                 root.showTimerSettingsDialog = false;
+                root.showVpnDialog = false;
                 root.showWifiDialog = false;
                 root.showBluetoothDialog = false;
                 root.showAudioOutputDialog = false;
@@ -170,6 +178,11 @@ Item {
         dialog: PowerSavingDialog {}
     }
 
+    ToggleDialog {
+        shownPropertyString: "showVpnDialog"
+        dialog: VpnDialog {}
+    }
+
     component ToggleDialog: Loader {
         id: toggleDialogLoader
         required property string shownPropertyString
@@ -220,6 +233,9 @@ Item {
             }
             function onOpenPowerSavingDialog() {
                 root.showPowerSavingDialog = true;
+            }
+            function onOpenVpnDialog() {
+                root.showVpnDialog = true;
             }
             function onOpenWifiDialog() {
                 root.showWifiDialog = true;
