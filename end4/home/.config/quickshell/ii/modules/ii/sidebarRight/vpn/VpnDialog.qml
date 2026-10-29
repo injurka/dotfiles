@@ -8,6 +8,8 @@ import qs.modules.common.widgets
 WindowDialog {
     id: root
     property var priority: ["Prosebya", "AmneziaVPN", "Browsec"]
+    property var activeProviders: []
+    property string actionProvider: ""
     property string errorText: ""
     readonly property string helper: Qt.resolvedUrl("../../../../scripts/vpn/control.py").toString().replace("file://", "")
     backgroundHeight: content.implicitHeight + 56
@@ -36,6 +38,34 @@ WindowDialog {
             else root.errorText = "Не удалось сохранить приоритет";
         }
     }
+    Process {
+        id: status
+        command: ["python3", root.helper, "status"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const result = JSON.parse(text);
+                    root.activeProviders = result.active;
+                    if (result.error) root.errorText = result.error;
+                } catch (error) { root.errorText = "Не удалось получить состояние VPN"; }
+            }
+        }
+    }
+    Timer {
+        interval: 4000
+        running: root.show && !connection.running
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (!status.running) status.running = true
+    }
+    Process {
+        id: connection
+        command: ["python3", root.helper, "toggle-provider", root.actionProvider]
+        onExited: (exitCode) => {
+            root.errorText = exitCode === 0 ? "" : "Действие не выполнено. Подробности — в уведомлении VPN.";
+            if (!status.running) status.running = true;
+        }
+    }
     ColumnLayout {
         id: content
         Layout.fillWidth: true
@@ -55,12 +85,15 @@ WindowDialog {
                     required property string modelData
                     required property int index
                     Layout.fillWidth: true
-                    implicitHeight: 76
+                    implicitHeight: 112
                     radius: Appearance.rounding.normal
                     color: provider.index === 0 ? Appearance.m3colors.m3secondaryContainer : Appearance.m3colors.m3surfaceContainer
                     RowLayout {
-                        anchors.fill: parent
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
                         anchors.margins: 12
+                        height: 42
                         spacing: 6
                         MaterialSymbol {
                             text: provider.index === 0 ? "verified_user" : "vpn_lock"
@@ -102,12 +135,26 @@ WindowDialog {
                             StyledToolTip { text: "Настройки " + provider.modelData }
                         }
                     }
+                    RippleButtonWithIcon {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 10
+                        enabled: !connection.running && !save.running
+                        materialIcon: root.activeProviders.includes(provider.modelData) ? "link_off" : "vpn_key"
+                        mainText: connection.running && root.actionProvider === provider.modelData ? "Выполняется…" : root.activeProviders.includes(provider.modelData) ? "Отключить" : "Подключить"
+                        onClicked: {
+                            root.errorText = "";
+                            root.actionProvider = provider.modelData;
+                            connection.running = true;
+                        }
+                    }
                 }
             }
         }
         WindowDialogParagraph {
             Layout.fillWidth: true
-            text: "Сервер и автоподключение — в настройках соответствующего VPN-клиента."
+            text: "Подключение здесь не меняет приоритет. При выборе другого VPN текущее соединение будет отключено. Сервер — в настройках клиента."
         }
         StyledText {
             Layout.fillWidth: true

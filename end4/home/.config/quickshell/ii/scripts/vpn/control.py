@@ -76,20 +76,25 @@ def state():
 def notify(message):
     subprocess.run(['notify-send', 'VPN', message], check=False)
 
-def toggle():
-    clients, profile, active = state()
-    name = active[0] if active else order()[0]
-    action = 'disconnect' if active else 'connect'
+def ensure_available(name, action, clients, profile):
+    if name not in NAMES:
+        raise ValueError('Неизвестный VPN')
     if name == 'Prosebya':
         if not profile:
             raise RuntimeError('Профиль Prosebya не найден в NetworkManager')
-        result = subprocess.run(['nmcli', '--wait', '25', 'connection', 'down' if active else 'up', 'uuid', profile[0]], capture_output=True, text=True, timeout=30)
+    elif name not in clients or action not in clients[name][2]:
+        launch(name)
+        raise RuntimeError(f'Открыт {name}. Дождитесь появления меню в трее и выберите сервер в приложении, затем нажмите VPN снова.')
+
+
+def perform(name, action):
+    clients, profile, active = state()
+    ensure_available(name, action, clients, profile)
+    if name == 'Prosebya':
+        result = subprocess.run(['nmcli', '--wait', '25', 'connection', 'down' if action == 'disconnect' else 'up', 'uuid', profile[0]], capture_output=True, text=True, timeout=30)
         if result.returncode:
             raise RuntimeError('NetworkManager не смог выполнить действие. Проверьте профиль Prosebya в настройках сети.')
     else:
-        if name not in clients or action not in clients[name][2]:
-            launch(name)
-            raise RuntimeError(f'Открыт {name}. Дождитесь появления меню в трее и выберите сервер в приложении, затем нажмите VPN снова.')
         dest, menu, actions = clients[name]
         call(dest, menu, 'com.canonical.dbusmenu', 'Event', '(isvu)', (actions[action], 'clicked', GLib.Variant('i', 0), 0))
     for _ in range(12):
@@ -98,6 +103,20 @@ def toggle():
         if (name in current) == (action == 'connect'):
             return
     raise RuntimeError(f'{name}: состояние ещё не подтверждено. Проверьте окно клиента.')
+
+
+def toggle(name=None):
+    clients, profile, active = state()
+    if name is None:
+        perform(active[0] if active else order()[0], 'disconnect' if active else 'connect')
+        return
+    # Validate the selected client before interrupting an existing connection.
+    action = 'disconnect' if name in active else 'connect'
+    ensure_available(name, action, clients, profile)
+    if action == 'connect':
+        for other in active:
+            perform(other, 'disconnect')
+    perform(name, action)
 
 def launch(name):
     command = {'Prosebya': ['nm-connection-editor'], 'AmneziaVPN': ['AmneziaVPN'], 'Browsec': ['/opt/Browsec/browsec-desktop', '--ozone-platform=x11']}[name]
@@ -124,13 +143,13 @@ if __name__ == '__main__':
             save_priority(sys.argv[2])
         elif mode == 'launch':
             launch(sys.argv[2])
-        elif mode == 'toggle':
+        elif mode in ('toggle', 'toggle-provider'):
             lock = open(Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp')) / f'end4-vpn-{os.getuid()}.lock', 'w')
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 sys.exit(0)
-            toggle()
+            toggle(sys.argv[2] if mode == 'toggle-provider' else None)
     except Exception as error:
         if len(sys.argv) < 2 or sys.argv[1] == 'status':
             print(json.dumps({'active': [], 'preferred': order()[0], 'error': str(error)}))
