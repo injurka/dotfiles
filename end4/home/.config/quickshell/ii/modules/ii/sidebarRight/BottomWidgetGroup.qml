@@ -16,8 +16,9 @@ Rectangle {
     implicitHeight: collapsed ? collapsedBottomWidgetGroupRow.implicitHeight : 350
     signal openTimerSettings()
     property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
-    property int previousIndex: -1
+    readonly property int safeSelectedTab: Math.max(0, Math.min(selectedTab, tabs.length - 1))
     property bool collapsed: Persistent.states.sidebar.bottomGroup.collapsed
+    property bool pendingScheduleOpen: false
     property var tabs: [
         {
             "type": "calendar",
@@ -57,6 +58,19 @@ Rectangle {
         collapseCleanFadeTimer.start();
     }
 
+    function openSchedule() {
+        selectedTab = 0;
+        Persistent.states.sidebar.bottomGroup.tab = 0;
+        setCollapsed(false);
+        if (tabStack.status === Loader.Ready && tabStack.item
+                && typeof tabStack.item.openSchedule === "function") {
+            pendingScheduleOpen = false;
+            tabStack.item.openSchedule();
+        } else {
+            pendingScheduleOpen = true;
+        }
+    }
+
     Timer {
         id: collapseCleanFadeTimer
         interval: Appearance.animation.elementMove.duration / 2
@@ -72,9 +86,9 @@ Rectangle {
     Keys.onPressed: event => {
         if ((event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) && event.modifiers === Qt.ControlModifier) {
             if (event.key === Qt.Key_PageDown) {
-                root.selectedTab = Math.min(root.selectedTab + 1, root.tabs.length - 1);
+                root.selectedTab = Math.min(root.safeSelectedTab + 1, root.tabs.length - 1);
             } else if (event.key === Qt.Key_PageUp) {
-                root.selectedTab = Math.max(root.selectedTab - 1, 0);
+                root.selectedTab = Math.max(root.safeSelectedTab - 1, 0);
             }
             event.accepted = true;
         }
@@ -83,6 +97,8 @@ Rectangle {
     // The thing when collapsed
     RowLayout {
         id: collapsedBottomWidgetGroupRow
+        anchors.left: parent.left
+        anchors.right: parent.right
         opacity: collapsed ? 1 : 0
         visible: opacity > 0
         Behavior on opacity {
@@ -115,10 +131,26 @@ Rectangle {
             property int remainingTasks: Todo.list.filter(task => !task.done).length
             Layout.margins: 10
             Layout.leftMargin: 0
-            // text: `${DateTime.collapsedCalendarFormat}   •   ${remainingTasks} task${remainingTasks > 1 ? "s" : ""}`
-            text: Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
+            Layout.fillWidth: true
+            text: remainingTasks > 0
+                ? Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
+                : DateTime.collapsedCalendarFormat
             font.pixelSize: Appearance.font.pixelSize.large
             color: Appearance.colors.colOnLayer1
+        }
+
+        CalendarHeaderButton {
+            Layout.rightMargin: 10
+            forceCircle: true
+            tooltipText: Translation.tr("Schedule")
+            Accessible.name: Translation.tr("Schedule")
+            downAction: () => root.openSchedule()
+            contentItem: MaterialSymbol {
+                text: "open_in_full"
+                iconSize: Appearance.font.pixelSize.larger
+                horizontalAlignment: Text.AlignHCenter
+                color: Appearance.colors.colOnLayer1
+            }
         }
     }
 
@@ -154,7 +186,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 5
-                currentIndex: root.selectedTab
+                currentIndex: root.safeSelectedTab
                 expanded: false
                 Repeater {
                     model: root.tabs
@@ -162,7 +194,7 @@ Rectangle {
                         required property int index
                         required property var modelData
                         showToggledHighlight: false
-                        toggled: root.selectedTab == index
+                        toggled: root.safeSelectedTab == index
                         buttonText: modelData.name
                         buttonIcon: modelData.icon
                         onPressed: {
@@ -199,87 +231,31 @@ Rectangle {
                 id: tabStack
                 anchors.fill: parent
                 anchors.bottomMargin: -anchors.topMargin
+                source: Qt.resolvedUrl(root.tabs[root.safeSelectedTab].widget)
+                onLoaded: {
+                    if (root.pendingScheduleOpen) {
+                        root.pendingScheduleOpen = false;
+                        item.openSchedule();
+                    }
+                }
+                onStatusChanged: if (status === Loader.Error)
+                                     console.warn("[BottomWidgetGroup] Failed to load widget:", source)
 
                 Connections {
                     target: tabStack.item
                     ignoreUnknownSignals: true
                     function onOpenTimerSettings() { root.openTimerSettings() }
                 }
+            }
 
-                Component.onCompleted: {
-                    tabStack.source = root.tabs[root.selectedTab].widget;
-                }
-
-                Connections {
-                    target: root
-                    function onSelectedTabChanged() {
-                        if (root.currentTab > root.previousIndex)
-                            tabSwitchBehavior.animation.down = true;
-                        else if (root.currentTab < root.previousIndex)
-                            tabSwitchBehavior.animation.down = false;
-                        tabStack.source = root.tabs[root.selectedTab].widget;
-                    }
-                }
-
-                Behavior on source {
-                    id: tabSwitchBehavior
-                    animation: TabSwitchAnim {
-                        id: upAnim
-                        down: true
-                    }
-                }
-            }
-        }
-    }
-
-    component TabSwitchAnim: SequentialAnimation {
-        id: switchAnim
-        property bool down: false
-        ParallelAnimation {
-            PropertyAnimation {
-                target: tabStack
-                properties: "opacity"
-                to: 0
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-            PropertyAnimation {
-                target: tabStack.anchors
-                properties: "topMargin"
-                to: 10 * (switchAnim.down ? -1 : 1)
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
-        PropertyAction {
-            target: tabStack
-            property: "source"
-            value: root.tabs[root.selectedTab].widget
-        } // The source change happens here
-        ParallelAnimation {
-            PropertyAnimation {
-                target: tabStack.anchors
-                properties: "topMargin"
-                from: 10 * -(switchAnim.down ? -1 : 1)
-                to: 0
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
-            }
-            PropertyAnimation {
-                target: tabStack
-                properties: "opacity"
-                to: 1
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
-            }
-        }
-        ScriptAction {
-            script: {
-                root.previousIndex = root.selectedTab;
+            StyledText {
+                anchors.centerIn: parent
+                width: parent.width - 24
+                visible: tabStack.status === Loader.Error
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                color: Appearance.colors.colSubtext
+                text: Translation.tr("Could not load widget")
             }
         }
     }

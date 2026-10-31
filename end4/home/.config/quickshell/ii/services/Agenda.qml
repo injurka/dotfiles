@@ -17,14 +17,13 @@ Singleton {
     readonly property string path: Directories.state + "/user/agenda.json"
 
     property string calendarScope: "all"
-    property var workEvents: []
-    property bool workConfigured: false
-    property string workError: ""
-    property string workUpdatedAt: ""
-    property string workRangeStart: ""
-    property string workRangeEnd: ""
-    property string pendingWorkUrl: ""
-    readonly property bool workBusy: workProcess.running
+    property var calendars: []
+    property var calendarEvents: []
+    property string calendarError: ""
+    property var pendingCalendarPayload: ({})
+    property int calendarActionRevision: 0
+    readonly property bool calendarBusy: calendarProcess.running
+    readonly property var calendarScopes: buildCalendarScopes()
 
     property bool reminderSettingsReady: false
     property bool remindersEnabled: true
@@ -34,7 +33,34 @@ Singleton {
     readonly property string reminderSettingsPath: Directories.state + "/user/calendar-reminders.json"
 
     function day(value) {
-        return Schedule.mergedDay(data, value, workEvents, calendarScope);
+        return Schedule.mergedDay(data, value, calendarEvents, calendarScope);
+    }
+    function buildCalendarScopes() {
+        const options = [{label: Translation.tr("Personal"), value: "personal"}];
+        const seen = new Set();
+        calendars.forEach(calendar => {
+            const key = calendar.categoryKey || "";
+            if (!key || key === "personal" || seen.has(key)) return;
+            seen.add(key);
+            options.push({label: calendar.category, value: "category:" + key});
+        });
+        options.push({label: Translation.tr("All"), value: "all"});
+        return options;
+    }
+    function calendarsForScope(scope) {
+        if (scope === "all") return calendars;
+        const key = scope === "personal" ? "personal" : scope.slice("category:".length);
+        return calendars.filter(calendar => calendar.categoryKey === key);
+    }
+    function calendarStatus(scope, value) {
+        const selected = calendarsForScope(scope);
+        const failures = selected.filter(calendar => calendar.error);
+        if (failures.length)
+            return failures.map(calendar => calendar.name + ": " + calendar.error).join("\n");
+        if (selected.length && selected.every(calendar => calendar.rangeStart && calendar.rangeEnd
+            && (Schedule.key(value) < calendar.rangeStart || Schedule.key(value) >= calendar.rangeEnd)))
+            return Translation.tr("Calendar events are outside the synced date range");
+        return "";
     }
     function saveReminderState() {
         if (!reminderSettingsReady) return false;
@@ -71,7 +97,7 @@ Singleton {
         const due = [];
         const earliestLead = 4.5 * 60 * 1000;
         const latestLead = 5.5 * 60 * 1000;
-        Schedule.mergedDay(data, today, workEvents, "all").forEach(event => {
+        Schedule.mergedDay(data, today, calendarEvents, "all").forEach(event => {
             if (event.allDay || event.continued) return;
             const startAt = event.startAt ? new Date(event.startAt)
                 : new Date(current.getFullYear(), current.getMonth(), current.getDate(),
@@ -97,49 +123,49 @@ Singleton {
         Quickshell.execDetached(["notify-send", "--app-name=Calendar", "--expire-time=10000", summary, body]);
         if (reminderSoundEnabled) Audio.playSystemSound("complete");
     }
-    function workAction(action, url = "") {
-        if (workProcess.running) return;
-        pendingWorkUrl = url;
-        workProcess.command = ["bash", Directories.scriptPath + "/calendar/work-calendar.sh", action];
-        workProcess.stdinEnabled = action === "connect";
-        workProcess.running = true;
+    function calendarAction(action, payload = {}) {
+        if (calendarProcess.running) return false;
+        pendingCalendarPayload = payload;
+        calendarError = "";
+        calendarProcess.command = ["bash", Directories.scriptPath + "/calendar/work-calendar.sh", action];
+        calendarProcess.stdinEnabled = true;
+        calendarProcess.running = true;
+        return true;
     }
-    Component.onCompleted: workAction("load")
+    Component.onCompleted: calendarAction("load")
     Process {
-        id: workProcess
+        id: calendarProcess
         onStarted: {
-            if (root.pendingWorkUrl) {
-                write(JSON.stringify({url: root.pendingWorkUrl}));
-                root.pendingWorkUrl = "";
-                stdinEnabled = false;
-            }
+            write(JSON.stringify(root.pendingCalendarPayload || {}));
+            root.pendingCalendarPayload = {};
+            stdinEnabled = false;
         }
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
                     const result = JSON.parse(text);
-                    root.workEvents = result.events || [];
-                    root.workConfigured = result.configured;
-                    root.workError = result.error || "";
-                    root.workUpdatedAt = result.updatedAt || "";
-                    root.workRangeStart = result.rangeStart || "";
-                    root.workRangeEnd = result.rangeEnd || "";
+                    root.calendars = result.calendars || [];
+                    root.calendarEvents = result.events || [];
+                    root.calendarError = result.error || "";
+                    if (!root.calendarScopes.some(option => option.value === root.calendarScope))
+                        root.calendarScope = "all";
                 } catch (exception) {
-                    root.workError = "Could not read work calendar response";
+                    root.calendarError = "Could not read calendar response";
                 }
+                root.calendarActionRevision++;
             }
         }
         onExited: (code, status) => {
-            if (code !== 0) root.workError = "Could not start work calendar helper";
-            else if (command[2] === "load" && root.workConfigured)
-                Qt.callLater(() => root.workAction("sync"));
+            if (code !== 0) root.calendarError = "Could not start calendar helper";
+            else if (command[2] === "load" && root.calendars.length)
+                Qt.callLater(() => root.calendarAction("sync"));
         }
     }
     Timer {
         interval: 15 * 60 * 1000
-        running: root.workConfigured
+        running: root.calendars.length > 0
         repeat: true
-        onTriggered: if (!root.workBusy) root.workAction("sync")
+        onTriggered: if (!root.calendarBusy) root.calendarAction("sync")
     }
 
     function save(next, remember = true) {
@@ -317,7 +343,7 @@ Singleton {
     }
     onNowChanged: checkUpcomingActivities()
     onReadyChanged: checkUpcomingActivities()
-    onWorkEventsChanged: checkUpcomingActivities()
+    onCalendarEventsChanged: checkUpcomingActivities()
     onRemindersEnabledChanged: if (remindersEnabled) checkUpcomingActivities()
     onReminderSettingsReadyChanged: if (reminderSettingsReady) checkUpcomingActivities()
 

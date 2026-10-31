@@ -141,19 +141,32 @@ function layout(result) {
 }
 
 
-function mergedDay(data, value, work, scope) {
-    const personal = scope === "work" ? [] : occurrences(data, value);
-    if (scope === "personal") return personal;
+function mergedDay(data, value, calendars, scope) {
+    const personal = scope === "personal" || scope === "all" ? occurrences(data, value) : [];
     const begin = new Date(value.getFullYear(), value.getMonth(), value.getDate());
     const finish = addDays(begin, 1);
-    const external = work.filter(event => new Date(event.startAt) < finish && new Date(event.endAt) > begin).map(event => {
+    const matchingCalendars = (calendars || []).filter(event => {
+        if (scope === "all") return true;
+        if (scope === "personal") return event.categoryKey === "personal";
+        return event.categoryKey === scope.slice("category:".length);
+    });
+    const external = matchingCalendars.filter(event => new Date(event.startAt) < finish && new Date(event.endAt) > begin).map(event => {
         const start = new Date(event.startAt), end = new Date(event.endAt);
-        return Object.assign({}, event, {source: "work", color: "#64bfd2", readOnly: true,
+        return Object.assign({}, event, {source: "calendar", color: event.color || calendarColor(event.categoryKey), readOnly: true,
             occurrenceId: event.id + "@" + key(value),
             start: start < begin ? 0 : start.getHours() * 60 + start.getMinutes(),
             end: end >= finish ? 1440 : end.getHours() * 60 + end.getMinutes()});
     });
     return layout(personal.concat(external));
+}
+
+function calendarColor(category) {
+    const colors = ["#64bfd2", "#aac66e", "#dfbd79", "#db948e", "#e7a0c3", "#88cbbb", "#c9aceb"];
+    if (category === "work") return colors[0];
+    let hash = 0;
+    for (let index = 0; index < String(category || "").length; index++)
+        hash = (hash * 31 + String(category).charCodeAt(index)) | 0;
+    return colors[Math.abs(hash) % colors.length];
 }
 
 function compactDescription(event) {

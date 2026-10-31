@@ -281,6 +281,32 @@ Singleton {
             "key_get_description": Translation.tr("**Pricing**: free. Data used for training.\n\n**Instructions**: Log into Google account, allow AI Studio to create Google Cloud project or whatever it asks, go back and click Get API key"),
             "api_format": "gemini",
         }),
+        "gemini-3.1-flash-lite": aiModelComponent.createObject(this, {
+            "name": "Gemini 3.1 Flash-Lite",
+            "icon": "google-gemini-symbolic",
+            "description": "Low-latency text analysis and concise live assistance",
+            "homepage": "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
+            "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent",
+            "model": "gemini-3.1-flash-lite",
+            "requires_key": true,
+            "key_id": "gemini",
+            "key_get_link": "https://aistudio.google.com/app/apikey",
+            "api_format": "gemini",
+            "extraParams": { "generationConfig": { "thinkingConfig": { "thinkingLevel": "minimal" } } },
+        }),
+        "mistral-small-4": aiModelComponent.createObject(this, {
+            "name": "Mistral Small 4",
+            "icon": "mistral-symbolic",
+            "description": "Fast text assistance with minimal reasoning",
+            "homepage": "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
+            "endpoint": "https://api.mistral.ai/v1/chat/completions",
+            "model": "mistral-small-2603",
+            "requires_key": true,
+            "key_id": "mistral",
+            "key_get_link": "https://console.mistral.ai/api-keys",
+            "api_format": "mistral",
+            "extraParams": { "reasoning_effort": "none" },
+        }),
         "mistral-medium-3": aiModelComponent.createObject(this, {
             "name": "Mistral Medium 3",
             "icon": "mistral-symbolic",
@@ -307,9 +333,12 @@ Singleton {
 
     function addUserModels() {
         (Config?.options.ai?.extraModels ?? []).forEach(model => {
-            const safeModelName = root.safeModelName(model["model"]);
-            root.addModel(safeModelName, model)
+            const data = Object.assign({}, model);
+            const modelId = data.shellId || root.safeModelName(data.model);
+            delete data.shellId;
+            root.addModel(modelId, data)
         });
+        root.modelList = Object.keys(root.models);
     }
 
     Connections {
@@ -351,7 +380,7 @@ Singleton {
 
     function addModel(modelName, data) {
         root.models = Object.assign({}, root.models, {
-            [modelName]: aiModelComponent.createObject(this, data)
+            [modelName]: aiModelComponent.createObject(root, data)
         });
     }
 

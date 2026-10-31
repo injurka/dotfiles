@@ -60,6 +60,7 @@ Singleton {
 
             property JsonObject ai: JsonObject {
                 property string model: "gemini-2.5-flash"
+                property string activityPlannerModel: ""
                 property real temperature: 0.5
             }
 

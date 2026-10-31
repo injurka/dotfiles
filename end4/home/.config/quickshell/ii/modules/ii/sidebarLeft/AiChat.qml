@@ -746,11 +746,13 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     },
                 ]
 
-                ApiInputBoxIndicator {
-                    // Model indicator
-                    icon: "api"
-                    text: Ai.getModel().name
-                    tooltipText: Translation.tr("Current model: %1\nSet it with %2model MODEL").arg(Ai.getModel().name).arg(root.commandPrefix)
+                AiModelSelector {
+                    Layout.preferredWidth: 220
+                    Layout.maximumWidth: 300
+                    Layout.minimumWidth: 100
+                    implicitHeight: 34
+                    selectedModelId: Ai.currentModelId
+                    onModelSelected: modelId => Ai.setModel(modelId, false)
                 }
 
                 ApiInputBoxIndicator {

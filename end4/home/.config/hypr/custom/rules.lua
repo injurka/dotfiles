@@ -58,8 +58,10 @@ hl.window_rule({ match = { title = "^(About Mozilla Firefox)$" }, float = true }
 hl.window_rule({ match = { class = "^(firefox)$", title = "^(Picture-in-Picture)$" }, float = true })
 hl.window_rule({ match = { class = "^(firefox)$", title = "^(Library)$" }, float = true })
 
--- --- Игры: минимальный инпут-лаг (Direct Scanout / Immediate Mode) ---
+-- --- Игры: tearing и захват курсора ---
 hl.window_rule({ match = { class = "^(steam_app_.*|deadlock|deadlock.exe|project8|cs2)$" }, immediate = true })
+-- Для CS2 отключён tearing: он может замораживать кадр; захват курсора сохранён.
+hl.window_rule({ match = { class = "^(steam_app_730|cs2)$" }, immediate = false, confine_pointer = true })
 
 -- --------------------------------------------------------------------
 

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import "calendar_layout.js" as CalendarLayout
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
 
@@ -30,6 +31,11 @@ Item {
     AgendaWindow {
         id: agendaWindow
     }
+
+    function openSchedule() {
+        agendaWindow.openDate(new Date());
+    }
+
     // Layout.topMargin: 10
 
     MouseArea {
@@ -71,6 +77,8 @@ Item {
                 forceCircle: true
                 tooltipText: Translation.tr("Schedule")
                 Accessible.name: Translation.tr("Schedule")
+                colBackgroundHover: ColorUtils.mix(Appearance.colors.colLayer2,
+                                                    Appearance.colors.colLayer2Hover, 0.35)
                 downAction: () => agendaWindow.openDate(new Date())
                 contentItem: MaterialSymbol {
                     text: "open_in_full"

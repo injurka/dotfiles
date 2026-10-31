@@ -14,6 +14,9 @@ RippleButton {
     id: root
     property bool opened: false
     property bool editing: false
+    // One theme-derived accent; spacing and shape are shared by all launch targets.
+    readonly property color menuAccent: Appearance.m3colors.m3primary
+    readonly property int menuRadius: 12
     onOpenedChanged: if (!opened) editing = false
     readonly property var apps: {
         // byId alone does not notify when the desktop database finishes loading.
@@ -28,28 +31,28 @@ RippleButton {
     function appStyle(app) {
         const id = app.id.toLowerCase();
         if (id.includes("kitty") || id.includes("terminal"))
-            return { icon: "terminal", color: "#a8dcc1", label: "Терминал" };
+            return { icon: "terminal", label: "Терминал" };
         if (id.includes("trip-scheduler"))
-            return { icon: "travel_explore", color: "#9ed7e0", label: "Путешествия и маршруты" };
+            return { icon: "travel_explore", label: "Путешествия и маршруты" };
         if (id.includes("wander-mark"))
-            return { icon: "edit_note", color: "#c9d99c", label: "Заметки · Markdown" };
+            return { icon: "edit_note", label: "Заметки · Markdown" };
         if (id.includes("dolphin"))
-            return { icon: "folder_open", color: "#a9cdf4", label: "Файлы" };
+            return { icon: "folder_open", label: "Файлы" };
         if (id.includes("deadlock"))
-            return { icon: "sports_esports", color: "#e5bd82", label: "Steam · игры" };
+            return { icon: "sports_esports", label: "Steam · игры" };
         if (id.includes("cmake"))
-            return { icon: "deployed_code", color: "#f1bd99", label: "Сборка проектов" };
+            return { icon: "deployed_code", label: "Сборка проектов" };
         if (id.includes("insight-book"))
-            return { icon: "auto_stories", color: "#d4bffa", label: "Книги и языки" };
+            return { icon: "auto_stories", label: "Книги и языки" };
         if (id.includes("antigravity"))
-            return { icon: "rocket_launch", color: "#80cbc4", label: "AI IDE & Агент" };
+            return { icon: "rocket_launch", label: "AI IDE & Агент" };
         if (id.includes("codex") || id.includes("chatgpt"))
-            return { icon: "forum", color: "#a8dcc1", label: "Чат-ассистент" };
+            return { icon: "forum", label: "Чат-ассистент" };
         if (id.includes("hermes"))
-            return { icon: "psychology", color: "#f1bd99", label: "Автономный агент" };
+            return { icon: "psychology", label: "Автономный агент" };
         if (id.includes("zcode") || id.includes("zai"))
-            return { icon: "code", color: "#f48fb1", label: "IDE & разработка" };
-        return { icon: "apps", color: Appearance.m3colors.m3primary, label: "Приложение" };
+            return { icon: "code", label: "IDE & разработка" };
+        return { icon: "apps", label: "Приложение" };
     }
 
     Process {
@@ -111,12 +114,13 @@ RippleButton {
     // Native Button input avoids the custom RippleButton MouseArea in scrolling content.
     component MenuButton: Button {
         id: control
-        property real buttonRadius: 16
+        property real buttonRadius: root.menuRadius
         property color colBackground: Appearance.colors.colLayer1
         property color colBackgroundHover: Appearance.colors.colLayer1Hover
         property color colRipple: colBackgroundHover
         property bool toggled: false
         hoverEnabled: true
+        Accessible.name: ToolTip.text
         padding: 0
         background: Rectangle {
             radius: control.buttonRadius
@@ -135,8 +139,8 @@ RippleButton {
         property string badge: ""
         property color accent: Appearance.m3colors.m3onSurfaceVariant
         Layout.fillWidth: true
-        Layout.topMargin: 4
-        Layout.bottomMargin: 2
+        Layout.topMargin: 8
+        Layout.bottomMargin: 0
         spacing: 7
 
         MaterialSymbol {
@@ -154,8 +158,8 @@ RippleButton {
             renderTypeQuality: Text.HighRenderTypeQuality
             font.hintingPreference: Font.PreferNoHinting
             text: secHeader.title
-            font.pixelSize: 11
-            font.letterSpacing: 1.6
+            font.pixelSize: 12
+            font.letterSpacing: 0
             font.weight: Font.DemiBold
             color: secHeader.accent
         }
@@ -185,26 +189,27 @@ RippleButton {
 
     component AiCard: Button {
         id: card
-        property real buttonRadius: 17
+        property real buttonRadius: root.menuRadius
         property string label: ""
         property string description: ""
         property string symbol: "auto_awesome"
-        property color accent: Appearance.m3colors.m3primary
         property var trigger: () => {}
         property bool featured: false
 
         Layout.fillWidth: true
-        implicitHeight: featured ? 74 : 70
+        implicitHeight: featured ? 68 : 60
         padding: 0
         hoverEnabled: true
+        Accessible.name: label
+        Accessible.description: description
 
         background: Rectangle {
             radius: card.buttonRadius
             color: card.down ? Qt.darker(Appearance.colors.colLayer1Hover, 1.08)
-                : card.hovered ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-            border.width: 1
-            border.color: card.hovered ? Qt.alpha(card.accent, 0.5)
-                : (card.featured ? Qt.alpha(card.accent, 0.28) : Appearance.colors.colLayer0Border)
+                : card.hovered ? Appearance.colors.colLayer1Hover
+                : card.featured ? Appearance.colors.colPrimaryContainer : "transparent"
+            border.width: card.activeFocus ? 2 : 0
+            border.color: root.menuAccent
 
             Behavior on border.color { ColorAnimation { duration: 150 } }
             Behavior on color { ColorAnimation { duration: 150 } }
@@ -218,10 +223,10 @@ RippleButton {
                 anchors.left: parent.left
                 anchors.leftMargin: 13
                 anchors.verticalCenter: parent.verticalCenter
-                width: card.featured ? 42 : 36
-                height: card.featured ? 42 : 36
+                width: 36
+                height: 36
                 radius: 12
-                color: Qt.alpha(card.accent, 0.16)
+                color: card.featured ? Qt.alpha(root.menuAccent, 0.12) : "transparent"
 
                 MaterialSymbol {
                     renderType: Text.QtRendering
@@ -230,7 +235,7 @@ RippleButton {
                     anchors.centerIn: parent
                     text: card.symbol
                     iconSize: card.featured ? 23 : 20
-                    color: card.accent
+                    color: card.featured ? Appearance.colors.colOnPrimaryContainer : Appearance.m3colors.m3onSurfaceVariant
                 }
             }
 
@@ -248,7 +253,8 @@ RippleButton {
                     font.hintingPreference: Font.PreferNoHinting
                     width: parent.width
                     text: card.label
-                    font.pixelSize: card.featured ? 15 : 14
+                    color: card.featured ? Appearance.colors.colOnPrimaryContainer : Appearance.m3colors.m3onSurface
+                    font.pixelSize: 14
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -260,7 +266,7 @@ RippleButton {
                     width: parent.width
                     text: card.description
                     font.pixelSize: 11
-                    color: card.hovered ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+                    color: card.featured ? Appearance.colors.colOnPrimaryContainer : Appearance.m3colors.m3onSurfaceVariant
                     elide: Text.ElideRight
 
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -275,10 +281,10 @@ RippleButton {
                 anchors.right: parent.right
                 anchors.rightMargin: 13
                 anchors.verticalCenter: parent.verticalCenter
-                text: card.featured ? "auto_awesome" : "arrow_outward"
+                text: "arrow_forward"
                 iconSize: 15
-                color: card.hovered ? card.accent : Appearance.m3colors.m3onSurfaceVariant
-                opacity: card.hovered ? 1.0 : (card.featured ? 0.65 : 0.3)
+                color: card.featured ? Appearance.colors.colOnPrimaryContainer : Appearance.m3colors.m3onSurfaceVariant
+                opacity: card.hovered || card.activeFocus || card.featured ? 1 : 0
 
                 Behavior on opacity { NumberAnimation { duration: 150 } }
                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -295,8 +301,8 @@ RippleButton {
         id: popup
         visible: root.opened
         color: "transparent"
-        implicitWidth: Math.min(680, (screen?.width ?? 1920) - Appearance.sizes.baseVerticalBarWidth - 24)
-        implicitHeight: Math.min(menu.implicitHeight + 36, (root.QsWindow.window?.screen?.height ?? 800) * 0.85)
+        implicitWidth: Math.min(560, (screen?.width ?? 1920) - Appearance.sizes.baseVerticalBarWidth - 24)
+        implicitHeight: Math.min(menu.implicitHeight + 40, (root.QsWindow.window?.screen?.height ?? 800) * 0.85)
         screen: root.QsWindow.window?.screen ?? Quickshell.screens[0]
         exclusiveZone: 0
         exclusionMode: ExclusionMode.Ignore
@@ -333,7 +339,7 @@ RippleButton {
             id: frame
             anchors.fill: parent
             color: Appearance.m3colors.m3surfaceContainer
-            radius: 24
+            radius: 20
             border.width: 1
             border.color: Appearance.colors.colLayer0Border
 
@@ -342,7 +348,7 @@ RippleButton {
             Flickable {
                 id: viewport
                 anchors.fill: parent
-                anchors.margins: 18
+                anchors.margins: 20
                 contentWidth: width
                 contentHeight: menu.implicitHeight
                 boundsBehavior: Flickable.StopAtBounds
@@ -353,11 +359,11 @@ RippleButton {
                 ColumnLayout {
                     id: menu
                     width: viewport.width
-                    spacing: 12
+                    spacing: 8
 
                     Item {
                         Layout.fillWidth: true
-                        implicitHeight: 50
+                        implicitHeight: 60
                         Column {
                             anchors.left: parent.left
                             anchors.top: parent.top
@@ -367,20 +373,22 @@ RippleButton {
                                 renderType: Text.QtRendering
                                 renderTypeQuality: Text.HighRenderTypeQuality
                                 font.hintingPreference: Font.PreferNoHinting
-                                text: "БЫСТРЫЙ ДОСТУП"
-                                font.pixelSize: 11
-                                font.letterSpacing: 1.8
-                                color: Appearance.m3colors.m3onSurfaceVariant
+                                width: parent.width
+                                text: root.editing ? "Избранные приложения" : "Быстрый доступ"
+                                font.pixelSize: 20
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
                             }
                             StyledText {
                                 renderType: Text.QtRendering
                                 renderTypeQuality: Text.HighRenderTypeQuality
                                 font.hintingPreference: Font.PreferNoHinting
                                 width: parent.width
-                                text: root.editing ? "Собери своё меню" : "Рабочее пространство"
-                                font.pixelSize: 20
-                                font.weight: Font.DemiBold
                                 elide: Text.ElideRight
+                                text: root.editing ? "Выбери приложения для быстрого доступа" : "Твои приложения и инструменты"
+                                font.pixelSize: 11
+                                font.letterSpacing: 0
+                                color: Appearance.m3colors.m3onSurfaceVariant
                             }
                         }
                         MenuButton {
@@ -410,10 +418,8 @@ RippleButton {
                     // Section 1: AI & Neural Networks
                     SectionHeader {
                         visible: !root.editing
-                        title: "НЕЙРОСЕТИ И AI"
-                        icon: "auto_awesome"
-                        accent: "#d4bffa"
-                        badge: "5 ассистентов"
+                        title: "Ассистенты"
+                        badge: ""
                     }
 
                     // Featured built-in assistant
@@ -423,7 +429,7 @@ RippleButton {
                         label: "Нейронка"
                         description: "Встроенный ассистент · чат и контекст"
                         symbol: "auto_awesome"
-                        accent: "#d4bffa"
+
                         trigger: () => root.openAssistant()
                     }
 
@@ -431,15 +437,15 @@ RippleButton {
                     GridLayout {
                         visible: !root.editing
                         Layout.fillWidth: true
-                        columns: 2
-                        rowSpacing: 10
-                        columnSpacing: 10
+                        columns: viewport.width >= 420 ? 2 : 1
+                        rowSpacing: 4
+                        columnSpacing: 8
 
                         AiCard {
                             label: "Antigravity"
                             description: "AI IDE & Агент"
                             symbol: "rocket_launch"
-                            accent: "#80cbc4"
+
                             trigger: () => root.launchAiApp("antigravity", "/home/injurka/Applications/Antigravity-x64/antigravity")
                         }
 
@@ -447,7 +453,7 @@ RippleButton {
                             label: "ChatGPT"
                             description: "Десктоп-ассистент"
                             symbol: "forum"
-                            accent: "#a8dcc1"
+
                             trigger: () => root.launchAiApp("codex-desktop", "/usr/bin/codex-desktop")
                         }
 
@@ -455,7 +461,7 @@ RippleButton {
                             label: "Hermes"
                             description: "Автономный агент"
                             symbol: "psychology"
-                            accent: "#f1bd99"
+
                             trigger: () => root.launchAiApp("com.nousresearch.hermes", "/home/injurka/.local/bin/hermes desktop --skip-build")
                         }
 
@@ -463,7 +469,7 @@ RippleButton {
                             label: "ZCode (Z.AI)"
                             description: "IDE & разработка"
                             symbol: "code"
-                            accent: "#f48fb1"
+
                             trigger: () => root.launchAiApp("zcode", "/usr/bin/zcode")
                         }
                     }
@@ -471,9 +477,7 @@ RippleButton {
                     // Section 2: Tools & Learning
                     SectionHeader {
                         visible: !root.editing
-                        title: "ИНСТРУМЕНТЫ"
-                        icon: "style"
-                        accent: "#9ed7e0"
+                        title: "Обучение"
                     }
 
                     AiCard {
@@ -481,16 +485,14 @@ RippleButton {
                         label: "Повторение · SRS"
                         description: "Слова и карточки интервального повторения"
                         symbol: "style"
-                        accent: "#9ed7e0"
+
                         trigger: () => root.openSrs()
                     }
 
                     // Section 3: Applications
                     SectionHeader {
                         visible: !root.editing
-                        title: "ПРИЛОЖЕНИЯ"
-                        icon: "apps"
-                        accent: Appearance.m3colors.m3onSurfaceVariant
+                        title: "Приложения"
                         badge: root.apps.length > 0 ? String(root.apps.length) : ""
                     }
 
@@ -518,9 +520,9 @@ RippleButton {
 
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: viewport.width >= 560 ? 3 : 2
-                        rowSpacing: 10
-                        columnSpacing: 10
+                        columns: viewport.width >= 420 ? 2 : 1
+                        rowSpacing: 4
+                        columnSpacing: 8
                         Repeater {
                             model: root.editing
                                 ? DesktopEntries.applications.values.filter(app => app.name.toLowerCase().includes(search.text.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name))
@@ -530,13 +532,15 @@ RippleButton {
                                 required property var modelData
                                 required property int index
                                 readonly property var style: root.appStyle(modelData)
+                                Accessible.name: modelData.name
+                                Accessible.description: root.editing ? (LauncherApps.isPinned(modelData.id) ? "Убрать из избранного" : "Добавить в избранное") : style.label
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: 145
                                 Layout.columnSpan: 1
-                                implicitHeight: 104
+                                implicitHeight: 64
                                 padding: 0
-                                buttonRadius: 17
-                                colBackground: Appearance.colors.colLayer1
+                                buttonRadius: root.menuRadius
+                                colBackground: "transparent"
                                 colBackgroundHover: Appearance.colors.colLayer1Hover
                                 onClicked: {
                                     if (root.editing) LauncherApps.togglePin(modelData.id);
@@ -544,9 +548,9 @@ RippleButton {
                                 }
                                 contentItem: Item {
                                     Rectangle {
-                                        x: 13; y: 12
-                                        width: 33; height: 33; radius: 11
-                                        color: Qt.alpha(tile.style.color, 0.15)
+                                        x: 10; y: 14
+                                        width: 36; height: 36; radius: 10
+                                        color: Appearance.colors.colLayer1
                                         MaterialSymbol {
                                              renderType: Text.QtRendering
                                             renderTypeQuality: Text.HighRenderTypeQuality
@@ -554,7 +558,7 @@ RippleButton {
                                             anchors.centerIn: parent
                                             text: tile.style.icon
                                             iconSize: 21
-                                            color: tile.style.color
+                                            color: Appearance.m3colors.m3onSurfaceVariant
                                         }
                                     }
                                     MaterialSymbol {
@@ -562,19 +566,19 @@ RippleButton {
                                         renderTypeQuality: Text.HighRenderTypeQuality
                                         font.hintingPreference: Font.PreferNoHinting
                                         anchors.right: parent.right
-                                        anchors.top: parent.top
-                                        anchors.margins: 13
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.rightMargin: 10
                                         text: root.editing
                                             ? (LauncherApps.isPinned(tile.modelData.id) ? "star" : "add")
-                                            : "arrow_outward"
+                                            : "arrow_forward"
                                         iconSize: 15
                                         color: root.editing && LauncherApps.isPinned(tile.modelData.id)
-                                            ? tile.style.color : Appearance.m3colors.m3onSurfaceVariant
-                                        opacity: root.editing || tile.hovered ? 1 : 0.4
+                                            ? root.menuAccent : Appearance.m3colors.m3onSurfaceVariant
+                                        opacity: root.editing || tile.hovered || tile.activeFocus ? 1 : 0
                                     }
                                     Column {
-                                        x: 13; y: 56
-                                        width: parent.width - 26
+                                        x: 58; anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 86
                                         spacing: 3
                                         StyledText {
                                             renderType: Text.QtRendering

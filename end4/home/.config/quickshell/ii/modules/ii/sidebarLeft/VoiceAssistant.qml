@@ -21,9 +21,20 @@ Item {
     property string activeInteractionId: ""
     readonly property string selectedModelId: Persistent.states.voiceAssistant.model
     readonly property var selectedModel: Ai.models[selectedModelId] || null
-    readonly property var modelOptions: Object.keys(Ai.models).filter(id =>
-        ["openai", "mistral", "gemini"].indexOf(Ai.models[id].api_format || "openai") >= 0
-    ).map(id => ({ modelId: id, name: Ai.models[id].name }))
+    readonly property var modelOptions: {
+        const preferred = ["gemini-3.1-flash-lite", "mistral-small-4"]
+        const retired = ["gemini-2.5-flash", "gemini-3-flash", "mistral-medium-3"]
+        const ids = Object.keys(Ai.models).filter(id => {
+            const model = Ai.models[id]
+            return !retired.includes(id)
+                && ["openai", "mistral", "gemini"].includes(model.api_format || "openai")
+                && !/(?:\br1\b|distill|\breasoner\b)/i.test(model.name + " " + model.model)
+        })
+        return ids.sort((a, b) => {
+            const rank = id => preferred.includes(id) ? preferred.indexOf(id) : preferred.length
+            return rank(a) - rank(b)
+        }).map(id => ({ modelId: id, name: Ai.models[id].name }))
+    }
     readonly property bool modelHasKey: selectedModel && (!selectedModel.requires_key
         || (Ai.apiKeysLoaded && (Ai.apiKeys[selectedModel.key_id] || "").length > 0))
     property bool modelConfigured: false
@@ -60,8 +71,14 @@ Item {
     function initializeModel() {
         if (!Persistent.ready || !Config.ready)
             return
-        if (!Persistent.states.voiceAssistant.model)
-            Persistent.states.voiceAssistant.model = Ai.currentModelId || (modelOptions[0]?.modelId || "")
+        const current = Persistent.states.voiceAssistant.model
+        if (!current) {
+            const available = modelOptions.find(option => {
+                const model = Ai.models[option.modelId]
+                return !model.requires_key || (Ai.apiKeysLoaded && (Ai.apiKeys[model.key_id] || "").length > 0)
+            })
+            Persistent.states.voiceAssistant.model = available?.modelId || modelOptions[0]?.modelId || ""
+        }
         syncModel()
     }
 
@@ -498,7 +515,7 @@ Item {
                     required property string phase
                     required property string modelName
                     width: messageList.width - 10
-                    implicitHeight: messageContent.implicitHeight + 20
+                    implicitHeight: messageContent.implicitHeight + 32
                     radius: Appearance.rounding.normal
                     color: Appearance.colors.colLayer2
                     ColumnLayout {
@@ -506,13 +523,15 @@ Item {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        anchors.margins: 10
-                        spacing: 7
+                        anchors.margins: 16
+                        spacing: 14
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
                             MaterialSymbol {
                                 id: interactionStatusIcon
+                                Layout.alignment: Qt.AlignTop
+                                Layout.topMargin: 2
                                 text: phase === "listening" ? "graphic_eq" : phase === "thinking" ? "progress_activity"
                                     : phase === "error" ? "error" : "check_circle"
                                 iconSize: 18
@@ -528,28 +547,37 @@ Item {
                             }
                             StyledText {
                                 Layout.fillWidth: true
-                                text: request || Translation.tr("Listening…")
-                                color: Appearance.colors.colOnLayer1
+                                text: request.replace(/\s*\n\s*/g, " ").trim() || Translation.tr("Listening…")
+                                color: Appearance.colors.colSubtext
+                                textFormat: Text.PlainText
+                                renderType: Text.QtRendering
+                                font.hintingPreference: Font.PreferNoHinting
+                                lineHeight: 1.35
                                 wrapMode: Text.Wrap
                             }
                         }
-                        StyledTextArea {
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 1
+                            visible: response.length > 0
+                            color: Appearance.colors.colLayer3
+                        }
+                        VoiceResponseText {
                             Layout.fillWidth: true
                             visible: response.length > 0
-                            text: response
-                            color: phase === "error" ? Appearance.colors.colError : Appearance.colors.colOnLayer1
-                            wrapMode: TextEdit.Wrap
-                            textFormat: phase === "error" ? TextEdit.PlainText : TextEdit.MarkdownText
-                            readOnly: true
-                            selectByMouse: true
-                            padding: 0
-                            background: null
-                            onLinkActivated: link => Qt.openUrlExternally(link)
+                            markdown: response
+                            error: phase === "error"
                         }
                         StyledText {
                             Layout.fillWidth: true
                             visible: modelName.length > 0
-                            text: modelName
+                            text: {
+                                const model = Object.values(Ai.models).find(item => item.model === modelName)
+                                return model?.name || modelName
+                            }
+                            textFormat: Text.PlainText
+                            renderType: Text.QtRendering
+                            font.hintingPreference: Font.PreferNoHinting
                             color: Appearance.colors.colSubtext
                             font.pixelSize: Appearance.font.pixelSize.small
                         }
@@ -562,127 +590,152 @@ Item {
             id: voiceComposer
             visible: !root.historyOpen
             Layout.fillWidth: true
-            implicitHeight: composer.implicitHeight + 10
-            radius: Appearance.rounding.normal
+            // Match AiChat's four-pixel outer inset within this twelve-pixel layout.
+            Layout.leftMargin: -8
+            Layout.rightMargin: -8
+            Layout.bottomMargin: -8
+            property real spacing: 5
+            implicitHeight: Math.max(voiceInputRow.implicitHeight + voiceComposerControls.implicitHeight
+                + voiceComposerControls.anchors.bottomMargin + spacing, 45)
+            radius: Appearance.rounding.normal - 4
             color: Appearance.colors.colLayer2
+            clip: true
 
-            ColumnLayout {
-                id: composer
-                anchors.fill: parent
-                anchors.margins: 5
-                spacing: 2
-                RowLayout {
+            Behavior on implicitHeight {
+                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+            }
+
+            RowLayout {
+                id: voiceInputRow
+                anchors {
+                    bottom: voiceComposerControls.top
+                    left: parent.left
+                    right: parent.right
+                    bottomMargin: 5
+                }
+                spacing: 0
+
+                ScrollView {
                     Layout.fillWidth: true
-                    spacing: 6
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.max(36, Math.min(120, chatInput.implicitHeight))
-                        clip: true
-                        StyledTextArea {
-                            id: chatInput
-                            renderType: Text.QtRendering
-                            font.hintingPreference: Font.PreferNoHinting
-                            width: parent.width
-                            placeholderText: Translation.tr("Message Voice Assistance…")
-                            wrapMode: TextArea.Wrap
-                            background: null
-                            padding: 8
-                            enabled: root.connected
-                            Keys.onPressed: event => {
-                                if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                                    && !(event.modifiers & Qt.ShiftModifier)) {
-                                    event.accepted = true
+                    Layout.preferredHeight: Math.min(root.height * 3/5, chatInput.height)
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    StyledTextArea {
+                        id: chatInput
+                        anchors.fill: parent
+                        wrapMode: TextArea.Wrap
+                        padding: 10
+                        color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+                        placeholderText: Translation.tr('Message the model... "%1" for commands').arg("/")
+                        background: null
+                        enabled: root.connected
+                        Keys.onPressed: event => {
+                            if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                && !(event.modifiers & Qt.ShiftModifier)) {
+                                event.accepted = true
+                                if (text.trim() === "/clear") {
+                                    interactions.clear()
+                                    root.errorText = ""
+                                    clear()
+                                } else if (text.trim() === "/") {
+                                    voiceCommands.open()
+                                } else {
                                     root.sendChat()
                                 }
                             }
                         }
                     }
-                    RippleButton {
-                        implicitWidth: 32
-                        implicitHeight: 32
-                        buttonRadius: 16
-                        enabled: root.connected && root.modelConfigured && root.modelHasKey && chatInput.text.trim().length > 0
-                        Accessible.name: Translation.tr("Send")
-                        onClicked: root.sendChat()
-                        contentItem: MaterialSymbol {
-                            text: "arrow_upward"
-                            iconSize: 21
-                            horizontalAlignment: Text.AlignHCenter
-                            color: Appearance.colors.colOnLayer1
+                }
+
+                RippleButton {
+                    id: voiceSendButton
+                    Layout.alignment: Qt.AlignBottom
+                    Layout.rightMargin: 5
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    buttonRadius: Appearance.rounding.small
+                    enabled: root.connected && root.modelConfigured && root.modelHasKey && chatInput.text.trim().length > 0
+                    toggled: enabled
+                    Accessible.name: Translation.tr("Send")
+                    onClicked: {
+                        if (chatInput.text.trim() === "/clear") {
+                            interactions.clear()
+                            root.errorText = ""
+                            chatInput.clear()
+                        } else if (chatInput.text.trim() === "/") {
+                            voiceCommands.open()
+                        } else {
+                            root.sendChat()
                         }
                     }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        iconSize: 22
+                        color: voiceSendButton.enabled ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnLayer2Disabled
+                        text: "arrow_upward"
+                    }
                 }
-                RowLayout {
+            }
+
+            RowLayout {
+                id: voiceComposerControls
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    bottom: parent.bottom
+                    bottomMargin: 5
+                    leftMargin: 10
+                    rightMargin: 5
+                }
+                spacing: 4
+
+                AiModelSelector {
+                    id: voiceModelSelector
                     Layout.fillWidth: true
-                    spacing: 4
-                    StyledComboBox {
-                        id: voiceModelSelector
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        implicitHeight: 30
-                        buttonIcon: "neurology"
-                        model: root.modelOptions
-                        textRole: "name"
-                        valueRole: "modelId"
-                        currentIndex: root.modelOptions.findIndex(option => option.modelId === root.selectedModelId)
-                        displayText: root.selectedModel?.name || Translation.tr("Choose a voice model")
-                        contentItem: Item {
-                            implicitWidth: compactModelRow.implicitWidth + 44
-                            implicitHeight: compactModelRow.implicitHeight
-                            RowLayout {
-                                id: compactModelRow
-                                anchors.fill: parent
-                                anchors.leftMargin: 4
-                                anchors.rightMargin: 40
-                                spacing: 6
-                                MaterialSymbol {
-                                    text: "neurology"
-                                    iconSize: 18
-                                    color: Appearance.colors.colOnLayer1
-                                }
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: voiceModelSelector.displayText
-                                    renderType: Text.QtRendering
-                                    font.hintingPreference: Font.PreferNoHinting
-                                    font.pixelSize: Appearance.font.pixelSize.smallie
-                                    color: Appearance.colors.colOnLayer1
-                                    elide: Text.ElideRight
+                    Layout.minimumWidth: 0
+                    implicitHeight: 34
+                    selectedModelId: root.selectedModelId
+                    ToolTip.visible: hovered
+                    ToolTip.text: Translation.tr("Model for Voice Assistance only")
+                    onModelSelected: modelId => Persistent.states.voiceAssistant.model = modelId
+                }
+
+                ApiInputBoxIndicator {
+                    icon: "service_toolbox"
+                    text: "Functions"
+                    tooltipText: Translation.tr("Voice Assistance")
+                }
+
+                ButtonGroup {
+                    padding: 0
+                    ApiCommandButton {
+                        buttonText: "/"
+                        downAction: () => voiceCommands.open()
+                        Menu {
+                            id: voiceCommands
+                            y: -height
+                            MenuItem {
+                                text: Translation.tr("Choose a voice model")
+                                onTriggered: voiceModelSelector.popup.open()
+                            }
+                            MenuItem {
+                                text: "/clear"
+                                onTriggered: {
+                                    interactions.clear()
+                                    root.errorText = ""
+                                    chatInput.clear()
                                 }
                             }
                         }
-                        colBackground: "transparent"
-                        colBackgroundHover: Appearance.colors.colLayer2Hover
-                        colBackgroundActive: Appearance.colors.colLayer2Active
-                        ToolTip.visible: hovered
-                        ToolTip.text: Translation.tr("Model for Voice Assistance only")
-                        onActivated: index => {
-                            Persistent.states.voiceAssistant.model = root.modelOptions[index].modelId
-                        }
                     }
-                    MaterialSymbol {
-                        text: root.modelHasKey ? "key" : "key_off"
-                        iconSize: 16
-                        color: root.modelHasKey ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                        ToolTip.visible: keyHover.hovered
-                        ToolTip.text: Translation.tr(root.modelHasKey ? "Uses the API key saved in Quickshell" : "Set this provider's API key in Intelligence")
-                        HoverHandler { id: keyHover }
-                    }
-                    RippleButton {
+                    ApiCommandButton {
                         buttonText: "/clear"
-                        implicitHeight: 30
-                        padding: 6
-                        contentItem: StyledText {
-                            text: "/clear"
-                            renderType: Text.QtRendering
-                            font.hintingPreference: Font.PreferNoHinting
-                            font.pixelSize: Appearance.font.pixelSize.smallie
-                            color: Appearance.colors.colOnLayer1
-                        }
-                        enabled: interactions.count > 0 || root.errorText.length > 0
-                        onClicked: {
+                        downAction: () => {
                             interactions.clear()
                             root.errorText = ""
+                            chatInput.clear()
                         }
                     }
                 }

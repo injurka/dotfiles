@@ -12,8 +12,10 @@ import sys
 import tempfile
 import urllib.parse
 import urllib.request
+import unicodedata
 
-STATE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'ii/work-calendar'
+STATE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'ii/calendars'
+LEGACY_STATE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'ii/work-calendar'
 
 
 def read(name, default):
@@ -25,10 +27,11 @@ def read(name, default):
 
 def write(name, value):
     STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(STATE, 0o700)
     fd, temporary = tempfile.mkstemp(dir=STATE)
     try:
         with os.fdopen(fd, 'w') as stream:
-            json.dump(value, stream, ensure_ascii=False)
+            json.dump(value, stream, ensure_ascii=False, separators=(',', ':'))
         os.replace(temporary, STATE / name)
     finally:
         if os.path.exists(temporary):
@@ -46,6 +49,68 @@ class HTTPSRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         secure_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def category_key(value):
+    return unicodedata.normalize('NFKC', value).strip().casefold()
+
+
+def read_legacy(name, default):
+    try:
+        return json.loads((LEGACY_STATE / name).read_text())
+    except FileNotFoundError:
+        return default
+
+
+def load_state():
+    config = read('config.json', None)
+    cache = read('cache.json', {})
+    if config is not None:
+        if isinstance(config, dict) and 'url' in config and 'calendars' not in config:
+            calendars = []
+            caches = {}
+            if config.get('url'):
+                calendars.append({'id': 'work', 'name': 'Work calendar', 'category': 'Work',
+                                  'url': secure_url(str(config['url']).strip())})
+                if isinstance(cache, dict):
+                    caches['work'] = cache
+            config = {'version': 1, 'calendars': calendars}
+            cache = caches
+            write('cache.json', cache)
+            write('config.json', config)
+        if not isinstance(config, dict) or not isinstance(config.get('calendars'), list):
+            raise ValueError('Invalid calendar settings')
+        return config, cache if isinstance(cache, dict) else {}
+
+    legacy = read_legacy('config.json', {})
+    legacy_cache = read_legacy('cache.json', {})
+    calendars = []
+    caches = {}
+    if isinstance(legacy, dict) and legacy.get('url'):
+        calendars.append({'id': 'work', 'name': 'Work calendar', 'category': 'Work',
+                          'url': secure_url(str(legacy['url']).strip())})
+        if isinstance(legacy_cache, dict):
+            caches['work'] = legacy_cache
+    config = {'version': 1, 'calendars': calendars}
+    if calendars:
+        write('cache.json', caches)
+        write('config.json', config)
+    return config, caches
+
+
+def validate_calendar(calendar):
+    if not isinstance(calendar, dict):
+        raise ValueError('Invalid calendar settings')
+    identity = str(calendar.get('id', '')).strip()
+    name = str(calendar.get('name', '')).strip()
+    category = str(calendar.get('category', '')).strip()
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,63}', identity):
+        raise ValueError('Invalid calendar ID')
+    if not name or len(name) > 64 or any(ord(char) < 32 for char in name):
+        raise ValueError('Enter a calendar name up to 64 characters')
+    if not category or len(category) > 48 or any(ord(char) < 32 for char in category):
+        raise ValueError('Enter a category up to 48 characters')
+    return {'id': identity, 'name': name, 'category': category}
 
 
 class DescriptionHTML(HTMLParser):
@@ -107,7 +172,7 @@ def details(event):
     return {'description': description, 'location': location, 'links': links}
 
 
-def expand(payload, begin, finish):
+def expand(payload, begin, finish, calendar_id='work'):
     from icalendar import Calendar
     import recurring_ical_events
     calendar = Calendar.from_ical(payload)
@@ -129,13 +194,13 @@ def expand(payload, begin, finish):
         if end <= start:
             end = start + dt.timedelta(minutes=30)
         identity = str(event.get('UID', '')) + start.isoformat()
-        result.append({'id': 'work-' + hashlib.sha256(identity.encode()).hexdigest()[:24],
+        result.append({'id': calendar_id + '-' + hashlib.sha256(identity.encode()).hexdigest()[:24],
                        'title': str(event.get('SUMMARY', 'Busy')), 'startAt': start.isoformat(),
                        'endAt': end.isoformat(), 'allDay': all_day, **details(event)})
     return result
 
 
-def sync(url):
+def sync(url, calendar_id='work'):
     secure_url(url)
     opener = urllib.request.build_opener(HTTPSRedirect())
     with opener.open(urllib.request.Request(url, headers={'Accept': 'text/calendar'}), timeout=30) as response:
@@ -145,41 +210,130 @@ def sync(url):
     today = dt.datetime.now().astimezone().date()
     begin = dt.datetime.combine(today - dt.timedelta(days=90), dt.time())
     finish = dt.datetime.combine(today + dt.timedelta(days=366), dt.time())
-    return {'events': expand(payload, begin, finish), 'updatedAt': dt.datetime.now().astimezone().isoformat(),
+    return {'events': expand(payload, begin, finish, calendar_id),
+            'updatedAt': dt.datetime.now().astimezone().isoformat(),
             'rangeStart': begin.date().isoformat(), 'rangeEnd': finish.date().isoformat()}
+
+
+def result_payload(config, cache, error=''):
+    calendars = []
+    events = []
+    for raw in config.get('calendars', []):
+        try:
+            calendar = validate_calendar(raw)
+        except ValueError:
+            continue
+        saved = cache.get(calendar['id'], {})
+        saved = saved if isinstance(saved, dict) else {}
+        saved_events = saved.get('events', [])
+        if not isinstance(saved_events, list):
+            saved_events = []
+        key = category_key(calendar['category'])
+        events.extend(dict(event, calendarId=calendar['id'], calendarName=calendar['name'],
+                           category=calendar['category'], categoryKey=key, source='calendar',
+                           readOnly=True)
+                      for event in saved_events if isinstance(event, dict))
+        calendars.append({
+            **calendar,
+            'categoryKey': key,
+            'configured': bool(raw.get('url')),
+            'eventCount': len(saved_events),
+            'updatedAt': saved.get('updatedAt', ''),
+            'rangeStart': saved.get('rangeStart', ''),
+            'rangeEnd': saved.get('rangeEnd', ''),
+            'error': saved.get('error', '')
+        })
+    return {'calendars': calendars, 'events': events, 'error': error}
+
+
+def perform(action, payload):
+    if action == 'connect':
+        payload = {'id': 'work', 'name': 'Work calendar', 'category': 'Work',
+                   'url': payload.get('url', '')}
+        action = 'save'
+    elif action == 'disconnect':
+        payload = {'id': 'work'}
+        action = 'delete'
+    config, cache = load_state()
+    config = {'version': 1, 'calendars': list(config.get('calendars', []))}
+    cache = dict(cache)
+    error = ''
+
+    if action == 'save':
+        submitted = validate_calendar(payload)
+        index = next((i for i, item in enumerate(config['calendars'])
+                      if item.get('id') == submitted['id']), -1)
+        existing = config['calendars'][index] if index >= 0 else None
+        new_url = str(payload.get('url', '')).strip()
+        if existing is not None and not new_url:
+            config['calendars'][index] = {**submitted, 'url': existing.get('url', '')}
+            write('config.json', config)
+        elif not new_url:
+            raise ValueError('Paste an HTTPS ICS subscription link')
+        else:
+            url = secure_url(new_url)
+            if existing is None and len(config['calendars']) >= 32:
+                raise ValueError('A maximum of 32 calendars can be connected')
+            updated = {**submitted, 'url': url}
+            new_cache = sync(url, submitted['id'])
+            if index >= 0:
+                config['calendars'][index] = updated
+            else:
+                config['calendars'].append(updated)
+            cache[submitted['id']] = new_cache
+            write('cache.json', cache)
+            write('config.json', config)
+
+    elif action == 'delete':
+        identity = str(payload.get('id', ''))
+        config['calendars'] = [item for item in config['calendars'] if item.get('id') != identity]
+        cache.pop(identity, None)
+        write('cache.json', cache)
+        write('config.json', config)
+
+    elif action == 'sync':
+        only_id = str(payload.get('id', ''))
+        for calendar in config['calendars']:
+            if only_id and calendar.get('id') != only_id:
+                continue
+            try:
+                cache[calendar['id']] = sync(calendar['url'], calendar['id'])
+            except ModuleNotFoundError:
+                cache.setdefault(calendar['id'], {})['error'] = (
+                    'Install python-icalendar and python-recurring-ical-events; see the calendar README.')
+            except Exception:
+                previous = cache.setdefault(calendar['id'], {})
+                previous['error'] = (
+                    'Calendar could not be refreshed. Check the link and network. Previous events were kept.')
+        write('cache.json', cache)
+
+    elif action != 'load':
+        raise ValueError('Unknown calendar action')
+
+    return result_payload(config, cache, error)
 
 
 def main():
     action = sys.argv[1] if len(sys.argv) > 1 else 'load'
     try:
-        config = read('config.json', {})
-        cache = read('cache.json', {})
+        raw = sys.stdin.read() if action in ('save', 'connect', 'delete', 'disconnect', 'sync') and not sys.stdin.isatty() else ''
+        payload = json.loads(raw) if raw.strip() else {}
+        if not isinstance(payload, dict):
+            payload = {}
+        result = perform(action, payload)
     except Exception:
-        print(json.dumps({'error': 'Could not read work calendar settings. Files were left unchanged.'}))
+        # Never expose subscription URLs, access tokens, server responses or meeting details.
+        try:
+            config, cache = load_state()
+            result = result_payload(config, cache, 'Calendar settings could not be saved. Check the link and try again.')
+        except Exception:
+            result = {'calendars': [], 'events': [],
+                      'error': 'Could not read calendar settings. Files were left unchanged.'}
+        if action == 'save':
+            result['error'] = 'Calendar could not be connected. Check the HTTPS ICS link and try again.'
+        print(json.dumps(result, ensure_ascii=False))
         return
-    error = ''
-    try:
-        if action == 'disconnect':
-            for name in ('config.json', 'cache.json'):
-                (STATE / name).unlink(missing_ok=True)
-            config, cache = {}, {}
-        elif action in ('connect', 'sync'):
-            url = json.load(sys.stdin)['url'].strip() if action == 'connect' else config.get('url', '')
-            if url:
-                new_cache = sync(url)
-                write('cache.json', new_cache)
-                write('config.json', {'url': url})
-                config, cache = {'url': url}, new_cache
-        elif action != 'load':
-            raise ValueError('Unknown calendar action')
-    except ModuleNotFoundError:
-        error = 'Install python-icalendar and python-recurring-ical-events; see the calendar README.'
-    except ValueError as exception:
-        error = str(exception) if 'ICS' in str(exception) or 'HTTPS' in str(exception) else 'Could not parse the ICS calendar.'
-    except Exception:
-        # Never expose the subscription token, server response or meeting details in errors/logs.
-        error = 'Work calendar could not be refreshed. Check the link and network. Previous events were kept.'
-    print(json.dumps(dict(cache, configured=bool(config.get('url')), error=error), ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == '__main__':
